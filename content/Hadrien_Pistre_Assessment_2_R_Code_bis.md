@@ -55,7 +55,8 @@ ggpairs(lendingclub_quant)
 ```
 
 
-[<img src="download.png" style="max-width:50%;min-width:40px;float:center;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
+[<img src="download.png" style="max-width:15%;min-width:40px;float:right;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
+
 
 \## 3. Create a smaller dataset (10,000 observations) to investigate
 \[…\]
