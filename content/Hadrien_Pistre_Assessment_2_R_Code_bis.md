@@ -55,7 +55,7 @@ ggpairs(lendingclub_quant)
 ```
 
 
-[<img src="crop_hp_800px.png" style="max-width:20%;min-width:40px;float:right;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
+[<img src="content/crop_hp_800px.png" style="max-width:20%;min-width:40px;float:right;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
 
 !(crop_hp_800px.png)
 
