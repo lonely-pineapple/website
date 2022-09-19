@@ -4,7 +4,7 @@ title: "A minimal Hugo website"
 theme: "hugo-xmin"
 googleAnalytics: ""
 disqusShortname: ""
-ignoreFiles: ["_cache$", "\\.knit\\.md$", "\\.utf8\\.md$"]
+ignoreFiles: []
 footnotereturnlinkcontents: "↩"
 
 permalinks:
@@ -17,7 +17,7 @@ menu:
       url: ""
       weight: 1
     - name: Test
-      url: "about_2/"
+      url: "this_is_rmd/"
       weight: 2
     - name: Categories
       url: "categories/"
