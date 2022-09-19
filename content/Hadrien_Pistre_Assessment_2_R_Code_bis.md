@@ -54,7 +54,9 @@ lendingclub_quant <- lendingclub_clean[c(1:2,4:5,7,20)]
 ggpairs(lendingclub_quant)
 ```
 
-![](download.png)
+
+[<img src="download.png" style="max-width:50%;min-width:40px;float:center;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
+
 \## 3. Create a smaller dataset (10,000 observations) to investigate
 \[…\]
 
