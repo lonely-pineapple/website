@@ -2,7 +2,7 @@
 title: Home
 ---
 
-[<img src="https://simpleicons.org/icons/github.svg" style="max-width:15%;min-width:40px;float:right;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
+[<img src="https://media-exp1.licdn.com/dms/image/C5603AQF7S-5zJCGekw/profile-displayphoto-shrink_800_800/0/1643059569832?e=1669248000&v=beta&t=QnxL5dzMDx0FEIk_p7cRmXrsgxsjlG_rshiCbBfbJ0g" style="max-width:15%;min-width:40px;float:right;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
 
 # HUGO XMIN
 
