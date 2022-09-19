@@ -14,7 +14,7 @@ permalinks:
 menu:
   main:
     - name: Home
-      url: ""
+      url: "post/2020-12-01-r-rmarkdown/index"
       weight: 1
     - name: Test
       url: "this_is_rmd/"
