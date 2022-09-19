@@ -54,7 +54,7 @@ lendingclub_quant <- lendingclub_clean[c(1:2,4:5,7,20)]
 ggpairs(lendingclub_quant)
 ```
 
-![](Hadrien_Pistre_Assessment_2_R_Code_bis_files/figure-markdown_github/correlation%20matrix-1.png)
+![](download.png)
 \## 3. Create a smaller dataset (10,000 observations) to investigate
 \[…\]
 
