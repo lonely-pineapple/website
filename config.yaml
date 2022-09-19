@@ -17,7 +17,7 @@ menu:
       url: ""
       weight: 1
     - name: Test
-      url: "about/"
+      url: "Hadrien_Pistre_Assessment_2_R_Code/"
       weight: 2
     - name: Categories
       url: "categories/"
