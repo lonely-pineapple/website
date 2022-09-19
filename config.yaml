@@ -16,7 +16,7 @@ menu:
     - name: Home
       url: ""
       weight: 1
-    - name: About
+    - name: Test
       url: "about/"
       weight: 2
     - name: Categories
