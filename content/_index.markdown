@@ -2,7 +2,7 @@
 title: Home
 ---
 
-[<img src="about/crop_hp_800px" style="max-width:15%;min-width:40px;float:right;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
+[<img src="crop_hp_800px.png" style="max-width:15%;min-width:40px;float:right;" alt="Github repo" />](https://github.com/yihui/hugo-xmin)
 
 # HUGO XMIN
 
