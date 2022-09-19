@@ -1,0 +1,681 @@
+---
+title: "Workshop 3 & Assessment 2"
+output:
+  md_document:
+    variant: markdown_github
+author: 'Hadrien Pistre'
+date: '2022-04-18'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+library(tidyverse)  # Load ggplot2, dplyr, and all the other tidyverse packages
+library(dplyr)
+library(fastDummies)
+library(mosaic)
+library(GGally)
+library(caret)
+library(PRROC)
+library(ROCR) 
+library(plotROC)
+library(ggthemes)
+library(lubridate)
+library(here)
+library(skimr)
+library(janitor)
+library(httr)
+library(readxl)
+library(vroom)
+library(infer)
+library(rvest)
+library(fivethirtyeight)
+library(tidyquant)
+```
+
+
+# Workshop 3 - Questions
+
+```{r read data, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#load the data from lending club
+lendingclub <- read_csv((here::here("lending_club_raw_data.csv")))
+lendingclub_clean <- lendingclub[,c(1:19)]
+head(lendingclub_clean,10)
+```
+## 1. Let’s go to the full dataset. Create a [...]
+
+```{r create binaries, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#create the column in which we will store the binary values of the loan status
+loan_stat_binary <- lendingclub_clean$loan_status
+lendingclub_clean <- cbind(lendingclub_clean,loan_stat_binary)
+
+#create the binary values
+lendingclub_clean <- lendingclub_clean %>%
+      mutate(loan_stat_binary = ifelse(loan_stat_binary == "Charged Off",1,0))
+colnames(lendingclub_clean)
+```
+
+
+## 2. Investigate, how often do loans default? Create a correlation [...]
+
+```{r correlation matrix, echo=TRUE, warning=FALSE,message=FALSE,error=FALSE, cache = TRUE}
+#select the quantitative variables and create a correlation plot
+lendingclub_quant <- lendingclub_clean[c(1:2,4:5,7,20)]
+ggpairs(lendingclub_quant)
+```
+## 3. Create a smaller dataset (10,000 observations) to investigate [...]
+
+```{r first logistic reg, echo=TRUE, warning=FALSE,message=FALSE,error=FALSE, cache = TRUE}
+#create a sample from the data of 10,000 observations
+lendingclub_sample <- sample(lendingclub_clean,10000)
+
+#create a logistic regression with the two required variables
+logistic_reg <- glm(loan_stat_binary ~
+                    loan_amnt + dti,
+                    family = binomial,
+                    data = lendingclub_sample)
+summary(logistic_reg)
+
+#use our model to predict the data using our current data set and store it in a df
+pred_log_reg <- predict(logistic_reg, newdata = lendingclub_sample, type = "response")
+pred_log_reg_df <- data.frame(pred_log_reg)
+
+#isolate the binary variables to create the upcoming ROC curves
+sample_binary_loan_stat <- lendingclub_sample["loan_stat_binary"]
+
+#create a ROC curve to assess the model's effectiveness
+ROC_logreg <- cbind(sample_binary_loan_stat,pred_log_reg_df)
+ROC_logreg_clean <- na.omit(ROC_logreg)
+PRROC_obj <- roc.curve(scores.class0 = ROC_logreg_clean$pred_log_reg, weights.class0=ROC_logreg_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)
+
+#create a confusion matrix with a 0.5 cut-off
+pred_log_reg_cut_off_50 <- ifelse(pred_log_reg_df > 0.5, 1, 0)
+pred_log_reg_cut_off_50_df <- data.frame(pred_log_reg_cut_off_50)
+
+table(lendingclub_sample$loan_stat_binary, pred_log_reg_cut_off_50)
+
+#create a confusion matrix with a 0.25 cut-off
+pred_log_reg_cut_off_25 <- ifelse(pred_log_reg_df > 0.25, 1, 0)
+pred_log_reg_cut_off_25_df <- data.frame(pred_log_reg_cut_off_25)
+
+table(lendingclub_sample$loan_stat_binary, pred_log_reg_cut_off_25)
+
+#create a confusion matrix with a 0.15 cut-off
+pred_log_reg_cut_off_15 <- ifelse(pred_log_reg_df > 0.15, 1, 0)
+pred_log_reg_cut_off_15_df <- data.frame(pred_log_reg_cut_off_15)
+
+table(lendingclub_sample$loan_stat_binary, pred_log_reg_cut_off_15)
+```
+## 5. Let’s try to improve the model’s accuracy by adding more variables, including [...]
+
+```{r create dummies, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#reduce the number of categories for several variables
+lendingclub_sample$emp_length <- recode(lendingclub_sample$emp_length, '< 1 year' = '< 2 years', '1 year' = '< 2 years', '2 years' = '2-5 years', '3 years' = '2-5 years', '4 years' = '2-5 years', '5 years' = '2-5 years', '6 years' = '> 5 years','7 years' = '> 5 years','8 years' = '> 5 years','9 years' = '> 5 years','10+ years' = '> 5 years')
+
+lendingclub_sample$delinq_2yrs <- recode(lendingclub_sample$delinq_2yrs, '0' = '< 2', '1' = '< 2', '2' = '2-5', '3' = '2-5', '4' = '2-5', '5' = '2-5', '6' = '> 5','7' = '> 5','8' = '> 5','9' = '> 5')
+
+lendingclub_sample$verification_status <- recode(lendingclub_sample$verification_status, 'Source Verified' = 'Verified', 'Verified' = 'Verified', 'Not Verified' = 'Not Verified')
+
+#select the relevant columns of our df
+lendingclub_sample <- lendingclub_sample[,c(1:20)]
+
+#create dummies for the categorical variables
+lendingclub_sample_dummied <- dummy_cols(lendingclub_sample, select_columns = c('term (months)','grade','emp_length','home_ownership','verification_status','purpose'))
+
+#delete the useless dummies
+drops <- c("term (months)_60","term (months)_NA","grade_G","grade_NA","emp_length_> 5 years","emp_length_n/a","emp_length_NA","home_ownership_OTHER","home_ownership_NA","verification_status_Verified","verification_status_NA","purpose_other","purpose_NA")
+lendingclub_sample_dummied_cleaned <- lendingclub_sample_dummied[ , !(names(lendingclub_sample_dummied) %in% drops)]
+lendingclub_sample_dummied_cleaned_names <- clean_names(lendingclub_sample_dummied_cleaned)
+
+#display the names of the selected variables
+colnames(lendingclub_sample_dummied_cleaned_names)
+```
+
+```{r second logistic reg, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#create a new logistic regression with the new variables
+logistic_reg_2 <- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+summary(logistic_reg_2)
+
+#predict with the log reg 2 the default probability with our current dataset and store in a df
+pred_log_reg_2 <- predict(logistic_reg_2, newdata = lendingclub_sample_dummied_cleaned_names, type = "response")
+pred_log_reg_2_df <- data.frame(pred_log_reg_2)
+
+#isolate the binary variables to create the ROC curve
+sample_binary_cleaned_loan_stat <- lendingclub_sample_dummied_cleaned_names["loan_stat_binary"]
+
+#create a ROC curve to assess the model's effectiveness
+ROC_logreg_2 <- cbind(sample_binary_cleaned_loan_stat,pred_log_reg_2_df)
+ROC_logreg_2_clean <- na.omit(ROC_logreg_2)
+PRROC_obj <- roc.curve(scores.class0 = ROC_logreg_2_clean$pred_log_reg, weights.class0=ROC_logreg_2_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+```{r interaction terms and third log reg, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+
+#create interaction terms between the home ownership status and the credit rating
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_mort_E <- lendingclub_sample_dummied_cleaned_names$home_ownership_mortgage * lendingclub_sample_dummied_cleaned_names$grade_e
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_own_E <- lendingclub_sample_dummied_cleaned_names$home_ownership_own * lendingclub_sample_dummied_cleaned_names$grade_e
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_rent_E <- lendingclub_sample_dummied_cleaned_names$home_ownership_rent * lendingclub_sample_dummied_cleaned_names$grade_e
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_mort_F <- lendingclub_sample_dummied_cleaned_names$home_ownership_mortgage * lendingclub_sample_dummied_cleaned_names$grade_f
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_own_F <- lendingclub_sample_dummied_cleaned_names$home_ownership_own * lendingclub_sample_dummied_cleaned_names$grade_f
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_rent_F <- lendingclub_sample_dummied_cleaned_names$home_ownership_rent * lendingclub_sample_dummied_cleaned_names$grade_f
+
+#create interaction terms between the loan term and the loan amount
+lendingclub_sample_dummied_cleaned_names$loan_amnt_x_term_36 <- lendingclub_sample_dummied_cleaned_names$loan_amnt * lendingclub_sample_dummied_cleaned_names$term_months_36
+
+#create a new logistic regression with our interaction terms
+logistic_reg_3 <- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding +
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F + home_ownsh_x_rent_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+
+summary(logistic_reg_3)
+
+#predict with the log reg 2 the default probability with our current dataset and store in a df
+pred_log_reg_3 <- predict(logistic_reg_3, newdata = lendingclub_sample_dummied_cleaned_names, type = "response")
+pred_log_reg_3_df <- data.frame(pred_log_reg_3)
+
+#plot a ROC curve for log reg 3
+ROC_logreg_3 <- cbind(sample_binary_cleaned_loan_stat,pred_log_reg_3_df)
+ROC_logreg_3_clean <- na.omit(ROC_logreg_3)
+PRROC_obj <- roc.curve(scores.class0 = ROC_logreg_3_clean$pred_log_reg, weights.class0=ROC_logreg_3_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+```{r fourth logistic reg, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#create a logistic regression removing the variables yielding only NAs
+logistic_reg_4 <- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding +
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+
+summary(logistic_reg_4)
+
+#predicting default probabilities on our current dataset and store in a df
+pred_log_reg_4 <- predict(logistic_reg_4, newdata = lendingclub_sample_dummied_cleaned_names, type = "response")
+pred_log_reg_4_df <- data.frame(pred_log_reg_4)
+
+#create a ROC curve
+ROC_logreg_4 <- cbind(sample_binary_cleaned_loan_stat,pred_log_reg_4_df)
+ROC_logreg_4_clean <- na.omit(ROC_logreg_4)
+PRROC_obj <- roc.curve(scores.class0 = ROC_logreg_4_clean$pred_log_reg, weights.class0=ROC_logreg_4_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+## 6. The model we have estimated in the previous step used the same data to estimate [...]
+
+```{r training and testing datasets, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#select 60% of the sample
+smp_size <- floor(0.6 * nrow(lendingclub_sample_dummied_cleaned_names))
+
+#set a seed to make the sample reproductible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(lendingclub_sample_dummied_cleaned_names)), size = smp_size)
+
+#assign the training and the testing datasets to new dfs
+train <- lendingclub_sample_dummied_cleaned_names[train_ind, ]
+test <- lendingclub_sample_dummied_cleaned_names[-train_ind, ]
+
+#take the model we created before and train in on the training data
+logistic_reg_trained <- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding +
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = train)
+summary(logistic_reg_trained)
+
+#use our trained model to predict default probabilities on the testing dataset
+pred_on_test <- predict(logistic_reg_trained, newdata = test, type = "response")
+pred_on_test_df <- data.frame(pred_on_test)
+
+#isolate the binary default probabilities of the testing data set to create the ROC curve
+test_loan_stat <- test["loan_stat_binary"]
+
+#create the ROC curve of our trained model predicting default probabilities on the testing dataset vs the actual defaults of the testing dataset
+ROC_logreg_on_test <- cbind(test_loan_stat,pred_on_test_df)
+ROC_logreg_on_test_clean <- na.omit(ROC_logreg_on_test)
+
+PRROC_obj <- roc.curve(scores.class0 = ROC_logreg_on_test_clean$pred_on_test, weights.class0=ROC_logreg_on_test_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+## 7. Let’s exploit the model to select loans to invest.
+### a. Before we focus on a more realistic revenue model [...]
+
+```{r sensitivity trained on trained, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#select actual defaults the from training set
+training_loan_stat <- train["loan_stat_binary"]
+
+#predict trained model on training dataset and put the prediction in a df
+pred_on_trained <- predict(logistic_reg_trained, newdata = train, type = "response")
+pred_on_trained_df <- data.frame(pred_on_trained)
+
+#create a first function to speed up the comparison, x being the cut-off, y the loss and x the profit
+pred_on_trained_function <- function(x,y,z){
+
+  #transform the predicted default probabilities into binary default probabilities according to cut-off x
+  pred_on_trained <- ifelse(pred_on_trained_df > x, 1, 0)
+
+  #bind actual binary default probabilities of training set and predicted ones to later create our ROC curve
+  pred_on_trained_vs_trained <- cbind(training_loan_stat,pred_on_trained)
+
+  #create our p&l using a nested ifelse statement as follows:
+  
+  pred_on_trained_vs_trained$p_l <- ifelse(pred_on_trained_vs_trained$loan_stat_binary == 1 & pred_on_trained_vs_trained$pred_on_trained == 1,0,#if we predict the loan will default (1) and it defaults (1), then we did not invest and have a 0 p&l
+                                           ifelse(pred_on_trained_vs_trained$loan_stat_binary == 0 & pred_on_trained_vs_trained$pred_on_trained == 1,0,#if we predict the loan will default (1) and it does not default (0), then we did not invest and have a 0 p&l (though we incur a cost of opportunity)
+                                                  ifelse(pred_on_trained_vs_trained$loan_stat_binary == 1 & pred_on_trained_vs_trained$pred_on_trained == 0,y,#if we predict the loan will not default (0) and it defaults (1), then we invested and we lose y
+                                                         ifelse(pred_on_trained_vs_trained$loan_stat_binary == 0 & pred_on_trained_vs_trained$pred_on_trained == 0,z,z))))#if we predict the loan will not default (0) and it does not default (0), then we invested and we make a gain of x
+
+  #clean our df with the p&l from NAs      
+  pred_on_trained_vs_trained_clean <- na.omit(pred_on_trained_vs_trained)
+
+  #print and paste the total p&l
+  pnl <- sum(pred_on_trained_vs_trained_clean$p_l)
+  print(paste(pnl))
+}#end of first function
+
+#create a second function using the first function to plot the graphs
+graph_trained_on_train_function <- function(x,y){
+
+  #assign p&ls for cut-offs by 0.5 increments
+  pnl_05 <- pred_on_trained_function(0.05,x,y)
+  pnl_10 <- pred_on_trained_function(0.1,x,y)
+  pnl_15 <- pred_on_trained_function(0.15,x,y)
+  pnl_20 <- pred_on_trained_function(0.2,x,y)
+  pnl_25 <- pred_on_trained_function(0.25,x,y)
+  pnl_30 <- pred_on_trained_function(0.3,x,y)
+  pnl_35 <- pred_on_trained_function(0.35,x,y)
+  pnl_40 <- pred_on_trained_function(0.40,x,y)
+  pnl_45 <- pred_on_trained_function(0.45,x,y)
+  pnl_50 <- pred_on_trained_function(0.50,x,y)
+  pnl_55 <- pred_on_trained_function(0.55,x,y)
+  pnl_60 <- pred_on_trained_function(0.60,x,y)
+  pnl_65 <- pred_on_trained_function(0.65,x,y)
+  pnl_70 <- pred_on_trained_function(0.70,x,y)
+  pnl_75 <- pred_on_trained_function(0.75,x,y)
+  pnl_80 <- pred_on_trained_function(0.80,x,y)
+  pnl_85 <- pred_on_trained_function(0.85,x,y)
+  pnl_90 <- pred_on_trained_function(0.90,x,y)
+  pnl_95 <- pred_on_trained_function(0.95,x,y)
+  pnl_100 <- pred_on_trained_function(1,x,y)
+
+  #put our inputs in a df
+  pred_on_trained_sensitivity <- data.frame(cut_off = c(0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1),
+                                            pnl = c(pnl_05,pnl_10,pnl_15,pnl_20,pnl_25,pnl_30,pnl_35,pnl_40,pnl_45,pnl_50,pnl_55,pnl_60,pnl_65,pnl_70,pnl_75,pnl_80,pnl_85,pnl_90,pnl_95,pnl_100))
+
+  #set the p&l df as numeric to have continuous scales on our graph
+  pred_on_trained_sensitivity$cut_off <- as.numeric(pred_on_trained_sensitivity$cut_off)
+  pred_on_trained_sensitivity$pnl <- as.numeric(pred_on_trained_sensitivity$pnl)
+
+  #print the tables
+  print(pred_on_trained_sensitivity)
+  
+  #plot the tables
+  ggplot(pred_on_trained_sensitivity, aes(x=cut_off,y=pnl,group = 1))+
+    geom_line(alpha=1) +
+    theme_bw() +
+    scale_y_continuous()+
+    labs (
+      title = paste("Sensitivity of P&L to cut-off using the trained model on the training dataset\nwith loss =", x,"and profit =",y),
+      x     = "Cut-off",
+      y     = "P&L")
+  }#end of function 2
+
+#do a sensitivity analysis of profit by 10 increments
+graph_trained_on_train_function(-100,20)
+graph_trained_on_train_function(-100,30)
+graph_trained_on_train_function(-100,40)
+
+#print the ROC curve
+pred_on_trained_vs_trained <- cbind(training_loan_stat,pred_on_trained)
+pred_on_trained_vs_trained <- na.omit(pred_on_trained_vs_trained)
+PRROC_obj <- roc.curve(scores.class0 = pred_on_trained_vs_trained$pred_on_trained, weights.class0=pred_on_trained_vs_trained$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+### b. Investigate whether the optimal investment cuttoff [...]
+
+```{r sensitivity trained on test, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#select defaults from testing set
+test_loan_stat <- test["loan_stat_binary"]
+
+#predict trained model on testing set and put the prediction in a df
+pred_on_test <- predict(logistic_reg_trained, newdata = test, type = "response")
+pred_on_test_df <- data.frame(pred_on_test)
+
+#rest of the chunk is as above but using the testing set to predict default probabilities using our model trained on the traing set
+pred_on_test_function <- function(x,y,z){
+
+  pred_on_test <- ifelse(pred_on_test_df > x, 1, 0)
+  
+  pred_on_test_vs_trained <- cbind(test_loan_stat,pred_on_test)
+
+  pred_on_test_vs_trained$p_l <- ifelse(pred_on_test_vs_trained$loan_stat_binary == 1 & pred_on_test_vs_trained$pred_on_test == 1,0,
+                                           ifelse(pred_on_test_vs_trained$loan_stat_binary == 0 & pred_on_test_vs_trained$pred_on_test == 1,0,
+                                                  ifelse(pred_on_test_vs_trained$loan_stat_binary == 1 & pred_on_test_vs_trained$pred_on_test == 0,y,
+                                                         ifelse(pred_on_test_vs_trained$loan_stat_binary == 0 & pred_on_test_vs_trained$pred_on_test == 0,z,z))))
+                                                  
+  pred_on_trained_vs_test_clean <- na.omit(pred_on_test_vs_trained)
+
+  pnl <- sum(pred_on_trained_vs_test_clean$p_l)
+
+  print(paste(pnl))
+}
+
+graph_trained_on_test_function <- function(x,y){
+
+  pnl_05 <- pred_on_test_function(0.05,x,y)
+  pnl_10 <- pred_on_test_function(0.1,x,y)
+  pnl_15 <- pred_on_test_function(0.15,x,y)
+  pnl_20 <- pred_on_test_function(0.2,x,y)
+  pnl_25 <- pred_on_test_function(0.25,x,y)
+  pnl_30 <- pred_on_test_function(0.3,x,y)
+  pnl_35 <- pred_on_test_function(0.35,x,y)
+  pnl_40 <- pred_on_test_function(0.40,x,y)
+  pnl_45 <- pred_on_test_function(0.45,x,y)
+  pnl_50 <- pred_on_test_function(0.50,x,y)
+  pnl_55 <- pred_on_test_function(0.55,x,y)
+  pnl_60 <- pred_on_test_function(0.60,x,y)
+  pnl_65 <- pred_on_test_function(0.65,x,y)
+  pnl_70 <- pred_on_test_function(0.70,x,y)
+  pnl_75 <- pred_on_test_function(0.75,x,y)
+  pnl_80 <- pred_on_test_function(0.80,x,y)
+  pnl_85 <- pred_on_test_function(0.85,x,y)
+  pnl_90 <- pred_on_test_function(0.90,x,y)
+  pnl_95 <- pred_on_test_function(0.95,x,y)
+  pnl_100 <- pred_on_test_function(1,x,y)
+
+  pred_on_test_sensitivity <- data.frame(cut_off = c(0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1),
+                                            pnl = c(pnl_05,pnl_10,pnl_15,pnl_20,pnl_25,pnl_30,pnl_35,pnl_40,pnl_45,pnl_50,pnl_55,pnl_60,pnl_65,pnl_70,pnl_75,pnl_80,pnl_85,pnl_90,pnl_95,pnl_100))
+
+  pred_on_test_sensitivity$cut_off <- as.numeric(pred_on_test_sensitivity$cut_off)
+  pred_on_test_sensitivity$pnl <- as.numeric(pred_on_test_sensitivity$pnl)
+
+  print(pred_on_test_sensitivity)
+  
+  ggplot(pred_on_test_sensitivity, aes(x=cut_off,y=pnl,group = 1))+
+    geom_line(alpha=1) +
+    theme_bw() +
+    scale_y_continuous()+
+    labs (
+      title = paste("Sensitivity of P&L to cut-off using the trained model on the testing dataset\nwith loss =", x,"and profit =",y),
+      x     = "Cut-off",
+      y     = "P&L")
+}
+
+graph_trained_on_test_function(-100,20)
+graph_trained_on_test_function(-100,30)
+graph_trained_on_test_function(-100,40)
+
+pred_on_test_vs_trained <- cbind(test_loan_stat,pred_on_test)
+pred_on_test_vs_trained <- na.omit(pred_on_test_vs_trained)
+
+PRROC_obj <- roc.curve(scores.class0 = pred_on_test_vs_trained$pred_on_test, weights.class0=pred_on_test_vs_trained$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+### c. Let’s stay with the validation dataset (which has 4,000 loans). Let’s build a [...] & d. Investigate how sensitive is the performance of your [...]
+
+```{r sensivity trained on test with realistic return, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#select all the terms used to compute the new return
+test_loan_excerpt <- test[c("term_months","loan_amnt","installment","loan_stat_binary")]
+
+#compute the return per loan if no default
+test_loan_excerpt$return <- ((test_loan_excerpt$installment * test_loan_excerpt$term_months)/test_loan_excerpt$loan_amnt)-1
+
+#as in the two chunks above
+pred_on_test_new <- predict(logistic_reg_trained, newdata = test, type = "response")
+pred_on_test_new_df <- data.frame(pred_on_test_new)
+
+#create a first function to speed up the comparison, x being the cut-off and y the loss in terms of return (note: z is removed since the return is determined by the formula created above)
+pred_on_test_new_function <- function(x,y){
+
+  pred_on_test_new <- ifelse(pred_on_test_new_df > x, 1, 0)
+
+  pred_on_test_vs_trained_new <- cbind(test_loan_excerpt,pred_on_test_new)
+  pred_on_test_vs_trained_new$roi <- ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 1 & pred_on_test_vs_trained_new$pred_on_test_new == 1,0,
+                                           ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 0 & pred_on_test_vs_trained_new$pred_on_test_new == 1,0,
+                                                  ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 1 & pred_on_test_vs_trained_new$pred_on_test_new == 0,y,
+                                                         ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 0 & pred_on_test_vs_trained_new$pred_on_test_new == 0,pred_on_test_vs_trained_new$return,pred_on_test_vs_trained_new$return))))#now using the formula for returns for loans we invested in that did not default
+  
+  #clean the data                                       
+  pred_on_test_vs_trained_new_clean <- na.omit(pred_on_test_vs_trained_new)
+
+  #we invest one dollar in each loan, so the total return is simply going to be the sum of the returns
+  pnl <- sum(pred_on_test_vs_trained_new_clean$roi)
+
+  print(paste(pnl))
+}
+
+#rest is as in the two chunk above
+graph_trained_on_test_function <- function(x){
+
+  pnl_05 <- pred_on_test_new_function(0.05,x)
+  pnl_10 <- pred_on_test_new_function(0.1,x)
+  pnl_15 <- pred_on_test_new_function(0.15,x)
+  pnl_20 <- pred_on_test_new_function(0.2,x)
+  pnl_25 <- pred_on_test_new_function(0.25,x)
+  pnl_30 <- pred_on_test_new_function(0.3,x)
+  pnl_35 <- pred_on_test_new_function(0.35,x)
+  pnl_40 <- pred_on_test_new_function(0.40,x)
+  pnl_45 <- pred_on_test_new_function(0.45,x)
+  pnl_50 <- pred_on_test_new_function(0.50,x)
+  pnl_55 <- pred_on_test_new_function(0.55,x)
+  pnl_60 <- pred_on_test_new_function(0.60,x)
+  pnl_65 <- pred_on_test_new_function(0.65,x)
+  pnl_70 <- pred_on_test_new_function(0.70,x)
+  pnl_75 <- pred_on_test_new_function(0.75,x)
+  pnl_80 <- pred_on_test_new_function(0.80,x)
+  pnl_85 <- pred_on_test_new_function(0.85,x)
+  pnl_90 <- pred_on_test_new_function(0.90,x)
+  pnl_95 <- pred_on_test_new_function(0.95,x)
+  pnl_100 <- pred_on_test_new_function(1,x)
+
+  pred_on_test_new_sensitivity <- data.frame(cut_off = c(0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1),
+                                            pnl = c(pnl_05,pnl_10,pnl_15,pnl_20,pnl_25,pnl_30,pnl_35,pnl_40,pnl_45,pnl_50,pnl_55,pnl_60,pnl_65,pnl_70,pnl_75,pnl_80,pnl_85,pnl_90,pnl_95,pnl_100))
+
+  pred_on_test_new_sensitivity$cut_off <- as.numeric(pred_on_test_new_sensitivity$cut_off)
+  pred_on_test_new_sensitivity$pnl <- as.numeric(pred_on_test_new_sensitivity$pnl)
+  
+  print(pred_on_test_new_sensitivity)
+
+  ggplot(pred_on_test_new_sensitivity, aes(x=cut_off,y=pnl,group = 1))+
+    geom_line(alpha=1) +
+    theme_bw() +
+    labs (
+      title = paste("Sensitivity of P&L to cut-off using the trained model on the testing dataset\nwith loss =", x),
+      x     = "Cut-off",
+      y     = "P&L")
+}
+
+#print the output graphs for different loss rate by 0.25 increments
+graph_trained_on_test_function(-0)
+graph_trained_on_test_function(-0.25)
+graph_trained_on_test_function(-0.5)
+graph_trained_on_test_function(-0.75)
+graph_trained_on_test_function(-1)
+```
+
+# Assessment 2
+
+## 1. Format the assessment 2 dataset
+
+```{r formatting the assessment data, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#read the assessment data
+assessment_data <- read_csv((here::here("assessment_raw_data.csv")))
+
+#recode the categorical variables as we did for the workshop dataset
+assessment_data$emp_length <- recode(assessment_data$emp_length, '< 1 year' = '< 2 years', '1 year' = '< 2 years', '2 years' = '2-5 years', '3 years' = '2-5 years', '4 years' = '2-5 years', '5 years' = '2-5 years', '6 years' = '> 5 years','7 years' = '> 5 years','8 years' = '> 5 years','9 years' = '> 5 years','10+ years' = '> 5 years')
+assessment_data$delinq_2yrs <- recode(assessment_data$delinq_2yrs, '0' = '< 2', '1' = '< 2', '2' = '2-5', '3' = '2-5', '4' = '2-5', '5' = '2-5', '6' = '> 5','7' = '> 5','8' = '> 5','9' = '> 5')
+assessment_data$verification_status <- recode(assessment_data$verification_status, 'Source Verified' = 'Verified', 'Verified' = 'Verified', 'Not Verified' = 'Not Verified')
+
+#create the same dummies as in the workshop dataset
+assessment_data_dummied <- dummy_cols(assessment_data, select_columns = c('term (months)','grade','emp_length','home_ownership','verification_status'))
+
+#delete the useless dummies
+drops <- c("term (months)_60","term (months)_NA","grade_G","grade_NA","emp_length_> 5 years","emp_length_n/a","emp_length_NA","home_ownership_OTHER","home_ownership_NA","verification_status_Verified","verification_status_NA")
+assessment_data_dummied_cleaned <- assessment_data_dummied[ , !(names(assessment_data_dummied) %in% drops)]
+assessment_data_dummied_cleaned_names <- clean_names(assessment_data_dummied_cleaned)
+
+#add our interaction terms of low grades * home ownership
+assessment_data_dummied_cleaned_names$home_ownsh_x_mort_E <- assessment_data_dummied_cleaned_names$home_ownership_mortgage * assessment_data_dummied_cleaned_names$grade_e
+assessment_data_dummied_cleaned_names$home_ownsh_x_own_E <- assessment_data_dummied_cleaned_names$home_ownership_own * assessment_data_dummied_cleaned_names$grade_e
+assessment_data_dummied_cleaned_names$home_ownsh_x_rent_E <- assessment_data_dummied_cleaned_names$home_ownership_rent * assessment_data_dummied_cleaned_names$grade_e
+assessment_data_dummied_cleaned_names$home_ownsh_x_mort_F <- assessment_data_dummied_cleaned_names$home_ownership_mortgage * assessment_data_dummied_cleaned_names$grade_f
+assessment_data_dummied_cleaned_names$home_ownsh_x_own_F <- assessment_data_dummied_cleaned_names$home_ownership_own * assessment_data_dummied_cleaned_names$grade_f
+assessment_data_dummied_cleaned_names$home_ownsh_x_rent_F <- assessment_data_dummied_cleaned_names$home_ownership_rent * assessment_data_dummied_cleaned_names$grade_f
+
+#add our interaction term of loan term * loan amount
+assessment_data_dummied_cleaned_names$loan_amnt_x_term_36 <- assessment_data_dummied_cleaned_names$loan_amnt * assessment_data_dummied_cleaned_names$term_months_36
+
+colnames(assessment_data_dummied_cleaned_names)
+```
+
+## 2. Fit our best model on the formatted assessment 2 data set
+
+```{r using best model on assessment data, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#train our latest model on the lending club sample used in the workshop (note: we did not use the purpose variables since informatiom about purposes was not available)
+logistic_reg_assessment_data <- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+summary(logistic_reg_assessment_data)
+
+#use this model to predict the default probabilities on the assessment data set and store in a df
+pred_logistic_reg_assessment_data <- predict(logistic_reg_assessment_data, newdata = assessment_data_dummied_cleaned_names, type = "response")
+pred_logistic_reg_assessment_data_df <- data.frame(pred_logistic_reg_assessment_data)
+
+#add a column in which the return per loan if no default is computed
+assessment_data_dummied_cleaned_names_excerpt <- assessment_data_dummied_cleaned_names[c("term_months","loan_amnt","installment")]
+assessment_data_dummied_cleaned_names_excerpt$return_no_def <- ((assessment_data_dummied_cleaned_names$installment * assessment_data_dummied_cleaned_names$term_months)/assessment_data_dummied_cleaned_names$loan_amnt)-1
+
+#create a df with the loan number, the predicted default probability and the return if no default
+pred_logistic_reg_assessment_data_df_complete <- cbind(assessment_data_dummied_cleaned_names$loan_number,pred_logistic_reg_assessment_data_df,assessment_data_dummied_cleaned_names_excerpt$return_no_def)
+
+#rename the columns with shorter names
+names(pred_logistic_reg_assessment_data_df_complete)[1] <- "loan_nb"
+names(pred_logistic_reg_assessment_data_df_complete)[2] <- "predicted_default_prob"
+names(pred_logistic_reg_assessment_data_df_complete)[3] <- "return_no_default"
+
+#plot the graph of return if no default vs default probability to assess the consistency of our model visually (we would expect higher default probability as the return increases)
+ggplot(pred_logistic_reg_assessment_data_df_complete, aes(x=predicted_default_prob,y=return_no_default,group = 1))+
+  geom_point(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+    title = paste("Probability of default VS return if no default"),
+    x     = "Probability of default",
+    y     = "Return if no default") #changing y-axis label to sentence case
+```
+
+## 3. Use our best model to compute the P&L on the assessment 2 dataset
+
+```{r compute pnl on the assessment 2 dataset, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#create a column with binary predicted default values based on the cut7-off
+pred_logistic_reg_assessment_data_df_complete$predicted_default_binary <- ifelse(pred_logistic_reg_assessment_data_df_complete$predicted_default_prob > 0.2, 1, 0)
+
+#create a pnl column replacing the binary default values by their pnl
+pred_logistic_reg_assessment_data_df_complete$pnl <- ifelse(pred_logistic_reg_assessment_data_df_complete$predicted_default_binary == 1,-0.5,pred_logistic_reg_assessment_data_df_complete$return_no_default)
+
+#clean the obtained dataframe                                                  
+pred_logistic_reg_assessment_data_df_complete <- na.omit(pred_logistic_reg_assessment_data_df_complete)
+
+#create a new column with another selection criterion to select the loans: the inverse of the default probability * the return -> hence the loans with the highest score will be those with the lowest default probability and the highest return
+pred_logistic_reg_assessment_data_df_complete$criterion <- (1/pred_logistic_reg_assessment_data_df_complete$predicted_default_prob) * (pred_logistic_reg_assessment_data_df_complete$return_no_default)
+  
+#arrange the table by pnl using the predicted returns by our model
+pred_logistic_reg_assessment_data_df_complete_ordered_by_pnl <- arrange(pred_logistic_reg_assessment_data_df_complete,desc(pnl))
+  
+#print the first 200 loans by pnl which would be the ones we would invest in
+top_200_pnl <- head(pred_logistic_reg_assessment_data_df_complete_ordered_by_pnl,200)
+  by_pnl_total_pnl <- sum(top_200_pnl$pnl)
+  by_pnl_total_pnl
+  
+print(top_200_pnl)
+
+top_200_pnl_loan_nb <- top_200_pnl$loan_nb
+top_200_pnl_loan_nb_df <- data.frame(top_200_pnl_loan_nb)
+print(top_200_pnl_loan_nb_df)
+  
+#arrange the table using our criterion that weight the predicted probability of default and the return if no default
+pred_logistic_reg_assessment_data_df_complete_ordered_by_criterion <- arrange(pred_logistic_reg_assessment_data_df_complete,desc(criterion))
+  
+#print the first 200 loans which would be the ones we would invest in according to our criterion
+top_200_criterion <- head(pred_logistic_reg_assessment_data_df_complete_ordered_by_criterion,200)
+  by_criterion_total_pnl_no_default <- sum(top_200_criterion$return_no_default)
+  by_criterion_total_pnl_no_default
+  
+top_200_criterion_loan_nb <- top_200_criterion$loan_nb
+top_200_criterion_loan_nb_df <- data.frame(top_200_criterion_loan_nb)
+print(top_200_criterion_loan_nb_df)
+  
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
