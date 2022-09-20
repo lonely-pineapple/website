@@ -1,7 +1,0 @@
----
-title: Home
----
-
-[I'm a relative reference to a repository file](content/Hadrien_Pistre_Assessment_2_R_Code.html)
-
-[References](#Hadrien_Pistre_Assessment_2_R_Code.html)

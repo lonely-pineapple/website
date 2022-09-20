@@ -4,7 +4,7 @@ title: "A minimal Hugo website"
 theme: "hugo-xmin"
 googleAnalytics: ""
 disqusShortname: ""
-ignoreFiles: ["\\.Rmd$", "_cache$", "\\.utf8\\.md$"]
+ignoreFiles: ["\\.Rmd$", "\\.Rmarkdown$", "_cache$", "\\.knit\\.md$", "\\.utf8\\.md$"]
 footnotereturnlinkcontents: "↩"
 
 permalinks:
@@ -16,12 +16,17 @@ menu:
     - name: Home
       url: ""
       weight: 1
-    - name: Projects
-      url: "r_projects/r_projects_index"
+    - name: About
+      url: "about/"
       weight: 2
-    - name: CV
-      url: "https://www.lifehack.org/articles/technology/7-reasons-why-youll-regret-not-having-personal-website-2.html"
+    - name: Categories
+      url: "categories/"
       weight: 3
+    - name: Tags
+      url: "tags/"
+      weight: 4
+    - name: Subscribe
+      url: "index.xml"
 
 params:
   description: "A website built through Hugo and blogdown."
