@@ -1,5 +1,5 @@
 ---
-title: "Logistic regression"
+title: "Logistic regression and loan default prediction"
 author: "Hadrien Pistre"
 date: 2022-04-17T21:13:14-05:00
 categories: ["R Projects"]
@@ -8,11 +8,31 @@ tags: ["R", "Logistic regression", "Linear regression", "Loan default prediction
 
 
 
-<p>I performed this analysis on a dataset containing information about borrowers of the <a href="https://www.lendingclub.com/">Lending Club</a>. This analysis was done during the elective “Data Mining for Business Intelligence” at <a href="https://www.london.edu/">London Business School</a> taught by <a href="https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n">Prof. Nicos Savva</a>.</p>
-<div class="figure">
-<img src="https://www.hadrienpistre.com/lending_club_2.jpg" alt="" />
-<p class="caption">lending_club_2</p>
-</div>
+<p>I performed this analysis on a dataset containing information about borrowers of the <a href="https://www.lendingclub.com/">Lending Club</a>. This analysis was done during the elective “Data Mining for Business Intelligence” at <a href="https://www.london.edu/">London Business School</a> taught by <a href="https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n">Prof. Nicos Savva</a>, <a href="https://www.london.edu/faculty-and-research/faculty-profiles/k/kostis-christodoulou">Prof. Kostis Christodoulou</a> and <a href="https://www.london.edu/faculty-and-research/faculty-profiles/e/ekaterina-abramova">Prof. Ekaterina Abramova</a>.</p>
+<p><img src="https://www.hadrienpistre.com/lending_club_2.jpg" alt="lending_club_2" />
+<em>Image source: <a href="https://www.telegraph.co.uk/business/2016/05/23/peer-to-peer-lenders-will-never-challenge-the-banks-says-deloitt/" class="uri">https://www.telegraph.co.uk/business/2016/05/23/peer-to-peer-lenders-will-never-challenge-the-banks-says-deloitt/</a></em></p>
+<p><strong>Used packages:</strong></p>
+<pre class="r"><code>library(tidyverse)
+library(dplyr)
+library(fastDummies)
+library(mosaic)
+library(GGally)
+library(caret)
+library(PRROC)
+library(ROCR) 
+library(plotROC)
+library(ggthemes)
+library(lubridate)
+library(here)
+library(skimr)
+library(janitor)
+library(httr)
+library(readxl)
+library(vroom)
+library(infer)
+library(rvest)
+library(fivethirtyeight)
+library(tidyquant)</code></pre>
 <pre class="r"><code>#load the dataset about borrowers, their characteristics and they having defaulted or not
 
 lendingclub &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/lending_club_raw_data.csv&quot;)))

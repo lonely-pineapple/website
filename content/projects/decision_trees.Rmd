@@ -6,7 +6,7 @@ categories: ["R Projects"]
 tags: ["R", "Decision tree", "Regression tree", "Random tree", "KNN", "Text mining"]
 ---
 
-I performed this analysis on a dataset containing information about borrowers of the [Lending Club](https://www.lendingclub.com/). This analysis was done during the elective "Data Mining for Business Intelligence" at [London Business School](https://www.london.edu/) taught by [Prof. Nicos Savva](https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n).
+I performed this analysis on a dataset containing information about borrowers of the [Lending Club](https://www.lendingclub.com/). This analysis was done during the elective "Data Mining for Business Intelligence" at [London Business School](https://www.london.edu/) taught by [Prof. Nicos Savva](https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n), [Prof. Kostis Christodoulou](https://www.london.edu/faculty-and-research/faculty-profiles/k/kostis-christodoulou) and [Prof. Ekaterina Abramova](https://www.london.edu/faculty-and-research/faculty-profiles/e/ekaterina-abramova).
 
 ![lending_club_1](https://www.hadrienpistre.com/lending_club_1.jpg)
 *Image source: https://www.pymnts.com/earnings/2021/lendingclub-q2-loan-originations-soar-by-84-pct/*
@@ -16,15 +16,16 @@ I performed this analysis on a dataset containing information about borrowers of
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r libraries, include=FALSE}
-library(rsample)     # data splitting 
-library(dplyr)       # data wrangling
-library(rpart)       # performing regression trees
-library(rpart.plot)  # plotting regression trees
-library(ipred)       # bagging
-library(caret)       # bagging
+**Used packages:**
+```{r library, cache=TRUE, results='hide'}
+library(rsample)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(ipred)
+library(caret)
 library(randomForest)
-library(tidyverse)  # Load ggplot2, dplyr, and all the other tidyverse packages
+library(tidyverse)
 library(fastDummies)
 library(readxl)
 library(janitor)
@@ -34,8 +35,6 @@ library(class)
 library(tokenizers)
 library(tidytext)
 library(PRROC)
-
-# Load
 library("tm")
 library("SnowballC")
 library("wordcloud")

@@ -6,7 +6,7 @@ categories: ["R Projects"]
 tags: ["R", "Clustering", "Linear regression", "Logistic regression"]
 ---
 
-I performed this analysis on a dataset containing information about users of [BBC's iPLAYER](https://www.bbc.co.uk/iplayer) streaming service. This analysis was done during the elective "Data Mining for Business Intelligence" at [London Business School](https://www.london.edu/) taught by [Prof. Nicos Savva](https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n).
+I performed this analysis on a dataset containing information about users of [BBC's iPLAYER](https://www.bbc.co.uk/iplayer) streaming service. This analysis was done during the elective "Data Mining for Business Intelligence" at [London Business School](https://www.london.edu/) taught by [Prof. Nicos Savva](https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n), [Prof. Kostis Christodoulou](https://www.london.edu/faculty-and-research/faculty-profiles/k/kostis-christodoulou) and [Prof. Ekaterina Abramova](https://www.london.edu/faculty-and-research/faculty-profiles/e/ekaterina-abramova).
 
 ![bbc](https://www.hadrienpistre.com/bbc.jpg)
 *Image source: https://dla-architecture.co.uk/projects/bbc-building-leeds/*

@@ -6,12 +6,16 @@ categories: ["R Projects"]
 tags: ["Price optimisation", "Logistic regression", "Linear regression", "Elasticity"]
 ---
 
+I performed this analysis on a dataset containing fictitious information about car insurance customers.
+
+![car_insurance](https://www.hadrienpistre.com/car_insurance.jpg)
+*Image source: https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/*
+
 ```{r setup, cache=TRUE, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-*Libraries used*
-
+**Used packages:**
 ```{r library, cache=TRUE, results='hide'}
 library(tidyverse)
 library(dplyr)
@@ -33,33 +37,27 @@ library(PolynomF)
 library(polynom)
 
 
-library(rsample)     
-library(dplyr)       
-library(rpart)       
-library(rpart.plot)  
-library(ipred)       
-library(caret)       
-library(randomForest)
-library(tidyverse)  
+library(tidyverse)
+library(dplyr)
 library(fastDummies)
-library(readxl)
-library(janitor)
-library(e1071)
-library(caTools)
-library(class)
-library(tokenizers)
-library(tidytext)
-library(PRROC)
-library(lubridate)
-library(writexl)
-library(ggthemes)
+library(mosaic)
 library(GGally)
-library(factoextra)
-library(cluster)
-library(gridExtra)
-library(parameters)
-library(see)
-
+library(caret)
+library(PRROC)
+library(ROCR) 
+library(plotROC)
+library(ggthemes)
+library(lubridate)
+library(here)
+library(skimr)
+library(janitor)
+library(httr)
+library(readxl)
+library(vroom)
+library(infer)
+library(rvest)
+library(fivethirtyeight)
+library(tidyquant)
 ```
 
 # 1. Exploring the data

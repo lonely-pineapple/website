@@ -8,178 +8,51 @@ tags: ["Price optimisation", "Logistic regression", "Linear regression", "Elasti
 
 
 
+<p>I performed this analysis on a dataset containing fictitious information about car insurance customers.</p>
+<p><img src="https://www.hadrienpistre.com/car_insurance.jpg" alt="car_insurance" />
+<em>Image source: <a href="https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/" class="uri">https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/</a></em></p>
 <p><em>Libraries used</em></p>
-<pre class="r"><code>library(tidyverse)</code></pre>
-<pre><code>## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --</code></pre>
-<pre><code>## v ggplot2 3.3.5     v purrr   0.3.4
-## v tibble  3.1.6     v dplyr   1.0.8
-## v tidyr   1.2.0     v stringr 1.4.1
-## v readr   2.1.2     v forcats 0.5.1</code></pre>
-<pre><code>## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
-## x dplyr::filter() masks stats::filter()
-## x dplyr::lag()    masks stats::lag()</code></pre>
-<pre class="r"><code>library(dplyr)
+<pre class="r"><code>library(tidyverse)
+library(dplyr)
 library(readxl)
-library(qpcR)</code></pre>
-<pre><code>## Loading required package: MASS</code></pre>
-<pre><code>## 
-## Attaching package: &#39;MASS&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     select</code></pre>
-<pre><code>## Loading required package: minpack.lm</code></pre>
-<pre><code>## Loading required package: rgl</code></pre>
-<pre><code>## Loading required package: robustbase</code></pre>
-<pre><code>## Loading required package: Matrix</code></pre>
-<pre><code>## 
-## Attaching package: &#39;Matrix&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:tidyr&#39;:
-## 
-##     expand, pack, unpack</code></pre>
-<pre class="r"><code>library(fastDummies)
-library(janitor)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;janitor&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:stats&#39;:
-## 
-##     chisq.test, fisher.test</code></pre>
-<pre class="r"><code>library(kableExtra)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;kableExtra&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     group_rows</code></pre>
-<pre class="r"><code>library(GGally)</code></pre>
-<pre><code>## Registered S3 method overwritten by &#39;GGally&#39;:
-##   method from   
-##   +.gg   ggplot2</code></pre>
-<pre class="r"><code>library(huxtable)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;huxtable&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:GGally&#39;:
-## 
-##     wrap</code></pre>
-<pre><code>## The following object is masked from &#39;package:kableExtra&#39;:
-## 
-##     add_footnote</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     add_rownames</code></pre>
-<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
-## 
-##     theme_grey</code></pre>
-<pre class="r"><code>library(caret)</code></pre>
-<pre><code>## Loading required package: lattice</code></pre>
-<pre><code>## 
-## Attaching package: &#39;caret&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:qpcR&#39;:
-## 
-##     RMSE</code></pre>
-<pre><code>## The following object is masked from &#39;package:purrr&#39;:
-## 
-##     lift</code></pre>
-<pre class="r"><code>library(PRROC)
-library(ROCR)
-library(cutpointr)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;cutpointr&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:caret&#39;:
-## 
-##     precision, recall, sensitivity, specificity</code></pre>
-<pre class="r"><code>library(factoextra)</code></pre>
-<pre><code>## Welcome! Want to learn more? See two factoextra-related books at https://goo.gl/ve3WBa</code></pre>
-<pre class="r"><code>library(gridExtra)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;gridExtra&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     combine</code></pre>
-<pre class="r"><code>library(cluster)
-library(PolynomF)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;PolynomF&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:purrr&#39;:
-## 
-##     zap</code></pre>
-<pre class="r"><code>library(polynom)</code></pre>
-<pre><code>## Registered S3 methods overwritten by &#39;polynom&#39;:
-##   method           from    
-##   [.polylist       PolynomF
-##   Summary.polylist PolynomF
-##   c.polylist       PolynomF
-##   deriv.polylist   PolynomF
-##   plot.polylist    PolynomF
-##   print.polylist   PolynomF
-##   rep.polylist     PolynomF
-##   unique.polylist  PolynomF</code></pre>
-<pre><code>## 
-## Attaching package: &#39;polynom&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:PolynomF&#39;:
-## 
-##     GCD, integral, LCM, polylist, polynomial</code></pre>
-<pre class="r"><code>library(rsample)     
-library(dplyr)       
-library(rpart)       
-library(rpart.plot)  
-library(ipred)       
-library(caret)       
-library(randomForest)</code></pre>
-<pre><code>## randomForest 4.7-1</code></pre>
-<pre><code>## Type rfNews() to see new features/changes/bug fixes.</code></pre>
-<pre><code>## 
-## Attaching package: &#39;randomForest&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:gridExtra&#39;:
-## 
-##     combine</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     combine</code></pre>
-<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
-## 
-##     margin</code></pre>
-<pre class="r"><code>library(tidyverse)  
+library(qpcR)
 library(fastDummies)
-library(readxl)
 library(janitor)
-library(e1071)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;e1071&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:rsample&#39;:
-## 
-##     permutations</code></pre>
-<pre class="r"><code>library(caTools)
-library(class)
-library(tokenizers)
-library(tidytext)
-library(PRROC)
-library(lubridate)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;lubridate&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     date, intersect, setdiff, union</code></pre>
-<pre class="r"><code>library(writexl)
-library(ggthemes)
+library(kableExtra)
 library(GGally)
+library(huxtable)
+library(caret)
+library(PRROC)
+library(ROCR)
+library(cutpointr)
 library(factoextra)
-library(cluster)
 library(gridExtra)
-library(parameters)</code></pre>
-<pre><code>## Registered S3 method overwritten by &#39;parameters&#39;:
-##   method                         from      
-##   format.parameters_distribution datawizard</code></pre>
-<pre><code>## 
-## Attaching package: &#39;parameters&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:e1071&#39;:
-## 
-##     kurtosis</code></pre>
-<pre><code>## The following object is masked from &#39;package:caret&#39;:
-## 
-##     compare_models</code></pre>
-<pre><code>## The following objects are masked from &#39;package:huxtable&#39;:
-## 
-##     print_html, print_md</code></pre>
-<pre class="r"><code>library(see)</code></pre>
+library(cluster)
+library(PolynomF)
+library(polynom)
+
+
+library(tidyverse)
+library(dplyr)
+library(fastDummies)
+library(mosaic)
+library(GGally)
+library(caret)
+library(PRROC)
+library(ROCR) 
+library(plotROC)
+library(ggthemes)
+library(lubridate)
+library(here)
+library(skimr)
+library(janitor)
+library(httr)
+library(readxl)
+library(vroom)
+library(infer)
+library(rvest)
+library(fivethirtyeight)
+library(tidyquant)</code></pre>
 <div id="exploring-the-data" class="section level1">
 <h1>1. Exploring the data</h1>
 <div id="import-the-data" class="section level2">
