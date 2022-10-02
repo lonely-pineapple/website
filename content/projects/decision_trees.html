@@ -1,0 +1,1582 @@
+---
+title: "Decision tree, KNN and text-mining"
+author: "Hadrien Pistre"
+date: 2022-04-26T21:13:14-05:00
+categories: ["R Projects"]
+tags: ["Decision tree", "Regression tree", "Random tree", "KNN", "Text mining"]
+---
+
+
+
+<pre class="r"><code>#load the data from lending club
+
+lending_club_full_raw &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/lending_club_full_raw.csv&quot;)))
+lending_club_full_raw_clean &lt;- lending_club_full_raw[,c(2:21)]</code></pre>
+<div id="retrieve-linear-regression-from-workshop-2" class="section level1">
+<h1>0. Retrieve linear regression from workshop 2</h1>
+<pre class="r"><code>#we format the data to run the linear regression model we determined in workshop 1
+
+#reduce the number of categories for several variables
+lending_club_full_raw_clean$emp_length &lt;- recode(lending_club_full_raw_clean$emp_length, &#39;&lt; 1 year&#39; = &#39;&lt; 2 years&#39;, &#39;1 year&#39; = &#39;&lt; 2 years&#39;, &#39;2 years&#39; = &#39;2-5 years&#39;, &#39;3 years&#39; = &#39;2-5 years&#39;, &#39;4 years&#39; = &#39;2-5 years&#39;, &#39;5 years&#39; = &#39;2-5 years&#39;, &#39;6 years&#39; = &#39;&gt; 5 years&#39;,&#39;7 years&#39; = &#39;&gt; 5 years&#39;,&#39;8 years&#39; = &#39;&gt; 5 years&#39;,&#39;9 years&#39; = &#39;&gt; 5 years&#39;,&#39;10+ years&#39; = &#39;&gt; 5 years&#39;)
+
+lending_club_full_raw_clean$delinq_2yrs &lt;- recode(lending_club_full_raw_clean$delinq_2yrs, &#39;0&#39; = &#39;&lt; 2&#39;, &#39;1&#39; = &#39;&lt; 2&#39;, &#39;2&#39; = &#39;2-5&#39;, &#39;3&#39; = &#39;2-5&#39;, &#39;4&#39; = &#39;2-5&#39;, &#39;5&#39; = &#39;2-5&#39;, &#39;6&#39; = &#39;&gt; 5&#39;,&#39;7&#39; = &#39;&gt; 5&#39;,&#39;8&#39; = &#39;&gt; 5&#39;,&#39;9&#39; = &#39;&gt; 5&#39;)
+
+lending_club_full_raw_clean$verification_status &lt;- recode(lending_club_full_raw_clean$verification_status, &#39;Source Verified&#39; = &#39;Verified&#39;, &#39;Verified&#39; = &#39;Verified&#39;, &#39;Not Verified&#39; = &#39;Not Verified&#39;)
+
+lending_club_full_raw_clean &lt;- clean_names(lending_club_full_raw_clean)
+drops &lt;- c(&quot;emp_title&quot;,&quot;issue_d&quot;,&quot;zip_code&quot;,&quot;addr_state&quot;,&quot;loan_status&quot;,&quot;desc&quot;,&quot;title&quot;)
+lending_club_full_raw_clean &lt;- lending_club_full_raw_clean[ , !(names(lending_club_full_raw_clean) %in% drops)]
+
+lending_club_full_raw_clean$interest_rate = as.numeric(gsub(&quot;[\\%,]&quot;, &quot;&quot;, lending_club_full_raw_clean$interest_rate))
+lending_club_full_raw_clean$installment = as.numeric(gsub(&quot;[\\$,]&quot;, &quot;&quot;, lending_club_full_raw_clean$installment))
+
+lending_club_full_raw_clean_dummied &lt;- dummy_cols(lending_club_full_raw_clean, select_columns = c(&#39;term_months&#39;,&#39;grade&#39;,&#39;emp_length&#39;,&#39;home_ownership&#39;,&#39;verification_status&#39;))
+
+drops &lt;- c(&quot;term_months_60&quot;,&quot;grade_G&quot;,&quot;emp_length_&gt;5 years&quot;,&quot;emp_length_&gt; 5 years&quot;,&quot;emp_length_n/a&quot;,&quot;home_ownership_OTHER&quot;,&quot;verification_status_Not Verified&quot;,&quot;verification_status_NA&quot;)
+lending_club_full_raw_clean_dummied_cleared &lt;- lending_club_full_raw_clean_dummied[ , !(names(lending_club_full_raw_clean_dummied) %in% drops)]
+lending_club_full_raw_clean_dummied_cleared &lt;- clean_names(lending_club_full_raw_clean_dummied_cleared)
+
+#create the interaction terms we used in our linear regression
+
+lending_club_full_raw_clean_dummied_cleared$annual_inc_2 &lt;- lending_club_full_raw_clean_dummied_cleared$annual_inc * lending_club_full_raw_clean_dummied_cleared$annual_inc
+lending_club_full_raw_clean_dummied_cleared$annual_inc_3 &lt;- lending_club_full_raw_clean_dummied_cleared$annual_inc_2 * lending_club_full_raw_clean_dummied_cleared$annual_inc
+
+lending_club_full_raw_clean_dummied_cleared$dti_2 &lt;- lending_club_full_raw_clean_dummied_cleared$dti * lending_club_full_raw_clean_dummied_cleared$dti
+lending_club_full_raw_clean_dummied_cleared$dti_3 &lt;- lending_club_full_raw_clean_dummied_cleared$dti_2 * lending_club_full_raw_clean_dummied_cleared$dti
+
+lending_club_full_raw_clean_dummied_cleared$grade_e_x_income &lt;- lending_club_full_raw_clean_dummied_cleared$grade_e * lending_club_full_raw_clean_dummied_cleared$annual_inc
+lending_club_full_raw_clean_dummied_cleared$grade_f_x_income &lt;- lending_club_full_raw_clean_dummied_cleared$grade_f * lending_club_full_raw_clean_dummied_cleared$annual_inc
+
+lending_club_full_raw_clean_dummied_cleared$dti_x_income &lt;- lending_club_full_raw_clean_dummied_cleared$dti * lending_club_full_raw_clean_dummied_cleared$annual_inc
+
+lending_club_full_raw_clean_dummied_cleared$emp_length_2_years_x_income &lt;- lending_club_full_raw_clean_dummied_cleared$emp_length_2_years * lending_club_full_raw_clean_dummied_cleared$annual_inc
+lending_club_full_raw_clean_dummied_cleared$emp_length_2_5_years_x_income &lt;- lending_club_full_raw_clean_dummied_cleared$emp_length_2_5_years * lending_club_full_raw_clean_dummied_cleared$annual_inc</code></pre>
+<pre class="r"><code>#partition our data for the linear regression
+smp_size &lt;- floor(0.6 * nrow(lending_club_full_raw_clean_dummied_cleared))
+
+#set a seed to make the sample reproductible
+set.seed(123)
+train_ind &lt;- sample(seq_len(nrow(lending_club_full_raw_clean_dummied_cleared)), size = smp_size)
+
+#assign the training and the testing datasets to new dfs
+train_lending_club_full_raw_clean_dummied_cleared &lt;- lending_club_full_raw_clean_dummied_cleared[train_ind, ]
+test_lending_club_full_raw_clean_dummied_cleared &lt;- lending_club_full_raw_clean_dummied_cleared[-train_ind, ]
+
+#define our linear regression
+lin_reg &lt;- lm(interest_rate ~
+                loan_amnt + 
+                term_months_36 + 
+                dti + 
+                annual_inc + 
+                grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                emp_length_2_years + emp_length_2_5_years +
+                home_ownership_mortgage + home_ownership_own + home_ownership_rent +
+                verification_status_verified +
+                annual_inc_2 + annual_inc_3 +
+                dti_2 + dti_3 +
+                grade_e_x_income + grade_f_x_income +
+                dti_x_income + 
+                emp_length_2_years_x_income + emp_length_2_5_years_x_income,
+              data = train_lending_club_full_raw_clean_dummied_cleared)
+summary(lin_reg)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = interest_rate ~ loan_amnt + term_months_36 + dti + 
+##     annual_inc + grade_a + grade_b + grade_c + grade_d + grade_e + 
+##     grade_f + emp_length_2_years + emp_length_2_5_years + home_ownership_mortgage + 
+##     home_ownership_own + home_ownership_rent + verification_status_verified + 
+##     annual_inc_2 + annual_inc_3 + dti_2 + dti_3 + grade_e_x_income + 
+##     grade_f_x_income + dti_x_income + emp_length_2_years_x_income + 
+##     emp_length_2_5_years_x_income, data = train_lending_club_full_raw_clean_dummied_cleared)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -11.7699  -0.6882   0.0008   0.6860   3.2522 
+## 
+## Coefficients:
+##                                 Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                    2.100e+01  2.588e-01  81.134  &lt; 2e-16 ***
+## loan_amnt                      1.524e-05  2.294e-06   6.641 3.38e-11 ***
+## term_months_36                -4.808e-01  3.658e-02 -13.143  &lt; 2e-16 ***
+## dti                           -2.080e-02  1.948e-02  -1.068   0.2855    
+## annual_inc                    -1.591e-06  1.170e-06  -1.360   0.1740    
+## grade_a                       -1.323e+01  1.507e-01 -87.784  &lt; 2e-16 ***
+## grade_b                       -9.712e+00  1.490e-01 -65.164  &lt; 2e-16 ***
+## grade_c                       -7.371e+00  1.496e-01 -49.264  &lt; 2e-16 ***
+## grade_d                       -5.267e+00  1.511e-01 -34.863  &lt; 2e-16 ***
+## grade_e                       -3.593e+00  1.697e-01 -21.170  &lt; 2e-16 ***
+## grade_f                       -1.743e+00  2.158e-01  -8.076 8.04e-16 ***
+## emp_length_2_years            -9.157e-02  7.086e-02  -1.292   0.1963    
+## emp_length_2_5_years          -1.876e-02  5.328e-02  -0.352   0.7247    
+## home_ownership_mortgage       -9.290e-02  1.885e-01  -0.493   0.6222    
+## home_ownership_own            -2.929e-02  1.940e-01  -0.151   0.8800    
+## home_ownership_rent           -1.612e-02  1.882e-01  -0.086   0.9318    
+## verification_status_verified   1.313e-01  2.960e-02   4.435 9.35e-06 ***
+## annual_inc_2                   3.533e-12  2.112e-12   1.673   0.0944 .  
+## annual_inc_3                  -1.970e-18  9.327e-19  -2.112   0.0347 *  
+## dti_2                          2.612e-03  1.591e-03   1.642   0.1007    
+## dti_3                         -7.273e-05  3.901e-05  -1.864   0.0623 .  
+## grade_e_x_income               1.461e-06  9.174e-07   1.593   0.1112    
+## grade_f_x_income               1.461e-06  1.416e-06   1.032   0.3020    
+## dti_x_income                   5.483e-08  5.508e-08   0.996   0.3195    
+## emp_length_2_years_x_income    2.152e-06  9.131e-07   2.357   0.0185 *  
+## emp_length_2_5_years_x_income  4.447e-07  6.029e-07   0.738   0.4608    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 1.056 on 5955 degrees of freedom
+## Multiple R-squared:  0.9169, Adjusted R-squared:  0.9165 
+## F-statistic:  2628 on 25 and 5955 DF,  p-value: &lt; 2.2e-16</code></pre>
+</div>
+<div id="decision-trees" class="section level1">
+<h1>1. Decision Trees</h1>
+<div id="regression-tree" class="section level2">
+<h2>1.1. Regression tree</h2>
+<pre class="r"><code>#partition our data for the regression tree
+lending_club_cleaned_for_tree &lt;- lending_club_full_raw_clean_dummied_cleared[c(1:12)]
+
+smp_size_2 &lt;- floor(0.6 * nrow(lending_club_cleaned_for_tree))
+
+#set a seed to make the sample reproductible
+set.seed(456)
+train_ind &lt;- sample(seq_len(nrow(lending_club_cleaned_for_tree)), size = smp_size_2)
+
+#assign the training and the testing datasets to new dfs
+train_lending_club_cleaned_for_tree &lt;- lending_club_cleaned_for_tree[train_ind, ]
+test_lending_club_cleaned_for_tree &lt;- lending_club_cleaned_for_tree[-train_ind, ]
+
+#create a function to set different tree depths
+regression_tree_function &lt;- function(x){
+
+model_1_tree &lt;- rpart(interest_rate ~ loan_amnt + term_months + installment + dti + delinq_2yrs + annual_inc + grade + emp_length + home_ownership + verification_status + purpose, data=train_lending_club_cleaned_for_tree, control=rpart.control(cp=.0001, maxdepth = x))
+
+#view results of the trees
+printcp(model_1_tree)
+print(model_1_tree)
+
+best &lt;- model_1_tree$cptable[which.min(model_1_tree$cptable[,&quot;xerror&quot;]),&quot;CP&quot;]
+
+#find the best cp value for the pruned tree
+pruned_model_1_tree_tree &lt;- prune(model_1_tree, cp=best)
+
+#plot the pruned tree
+prp(pruned_model_1_tree_tree,
+    faclen=0, #use full names for factor labels
+    extra=1, #display no. of observations for terminal nodes
+    roundint=F, #don&#39;t round integers
+    digits=5) #display 5 decimals
+
+model_1_tree_pred &lt;- predict(model_1_tree,test_lending_club_cleaned_for_tree)
+model_1_tree_pred_df &lt;- data.frame(model_1_tree_pred)
+
+sse &lt;- data.frame(pred = predict(model_1_tree,test_lending_club_cleaned_for_tree)) %&gt;%
+   mutate(obs = test_lending_club_cleaned_for_tree$interest_rate,
+          sq_err = (obs - pred)^2) %&gt;%
+   summarize(sse = sum(sq_err))
+print(sse)
+}#end of regression_tree_function
+
+#plot trees and their sse for different depths levels
+sse_tree_1 &lt;- regression_tree_function(3)</code></pre>
+<pre><code>## 
+## Regression tree:
+## rpart(formula = interest_rate ~ loan_amnt + term_months + installment + 
+##     dti + delinq_2yrs + annual_inc + grade + emp_length + home_ownership + 
+##     verification_status + purpose, data = train_lending_club_cleaned_for_tree, 
+##     control = rpart.control(cp = 1e-04, maxdepth = x))
+## 
+## Variables actually used in tree construction:
+## [1] grade       installment purpose    
+## 
+## Root node error: 80591/5981 = 13.475
+## 
+## n= 5981 
+## 
+##           CP nsplit rel error   xerror      xstd
+## 1 0.63293796      0  1.000000 1.000484 0.0164700
+## 2 0.13265983      1  0.367062 0.367496 0.0063785
+## 3 0.10675513      2  0.234402 0.234763 0.0062238
+## 4 0.02803216      3  0.127647 0.127840 0.0032848
+## 5 0.01044770      4  0.099615 0.099824 0.0030850
+## 6 0.00052542      5  0.089167 0.089448 0.0026435
+## 7 0.00030861      6  0.088642 0.089329 0.0026437
+## 8 0.00010000      7  0.088333 0.089363 0.0026432
+## n= 5981 
+## 
+## node), split, n, deviance, yval
+##       * denotes terminal node
+## 
+##  1) root 5981 80591.42000 12.118810  
+##    2) grade=A,B 3231 13894.31000  9.424568  
+##      4) grade=A 1453  1677.32600  7.412333  
+##        8) purpose=car,credit_card,debt_consolidation,home_improvement,house,major_purchase,medical,moving,other,renewable_energy,small_business,vacation,wedding 1434  1642.19800  7.397273 *
+##        9) purpose=educational 19    10.25718  8.548947 *
+##      5) grade=B 1778  1525.74200 11.068990  
+##       10) installment&lt; 492.86 1390  1169.85500 10.987450 *
+##       11) installment&gt;=492.86 388   313.54310 11.361080 *
+##    3) grade=C,D,E,F,G 2750 15687.74000 15.284290  
+##      6) grade=C,D 2065  4560.53100 14.265560  
+##       12) grade=C 1289  1136.12400 13.454010 *
+##       13) grade=D 776  1165.25500 15.613620 *
+##      7) grade=E,F,G 685  2523.66000 18.355340  
+##       14) grade=E 474  1079.46700 17.615630 *
+##       15) grade=F,G 211   602.19760 20.017060 *</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/regression%20tree-1.png" width="672" /></p>
+<pre><code>##        sse
+## 1 4479.122</code></pre>
+<pre class="r"><code>sse_tree_2 &lt;- regression_tree_function(4)</code></pre>
+<pre><code>## 
+## Regression tree:
+## rpart(formula = interest_rate ~ loan_amnt + term_months + installment + 
+##     dti + delinq_2yrs + annual_inc + grade + emp_length + home_ownership + 
+##     verification_status + purpose, data = train_lending_club_cleaned_for_tree, 
+##     control = rpart.control(cp = 1e-04, maxdepth = x))
+## 
+## Variables actually used in tree construction:
+## [1] grade               installment         loan_amnt          
+## [4] purpose             term_months         verification_status
+## 
+## Root node error: 80591/5981 = 13.475
+## 
+## n= 5981 
+## 
+##            CP nsplit rel error   xerror      xstd
+## 1  0.63293796      0  1.000000 1.000400 0.0164713
+## 2  0.13265983      1  0.367062 0.367205 0.0063754
+## 3  0.10675513      2  0.234402 0.234547 0.0062197
+## 4  0.02803216      3  0.127647 0.127844 0.0032752
+## 5  0.01044770      4  0.099615 0.099824 0.0030751
+## 6  0.00258485      5  0.089167 0.089419 0.0026387
+## 7  0.00174892      6  0.086582 0.087127 0.0026522
+## 8  0.00170546      7  0.084833 0.086769 0.0026395
+## 9  0.00068288      8  0.083128 0.084021 0.0025677
+## 10 0.00052542      9  0.082445 0.083548 0.0025545
+## 11 0.00030861     10  0.081920 0.083152 0.0025541
+## 12 0.00029741     11  0.081611 0.083296 0.0025591
+## 13 0.00017975     12  0.081314 0.083195 0.0025588
+## 14 0.00017544     13  0.081134 0.083380 0.0025602
+## 15 0.00010000     14  0.080958 0.083254 0.0025601
+## n= 5981 
+## 
+## node), split, n, deviance, yval
+##       * denotes terminal node
+## 
+##  1) root 5981 80591.420000 12.118810  
+##    2) grade=A,B 3231 13894.310000  9.424568  
+##      4) grade=A 1453  1677.326000  7.412333  
+##        8) purpose=car,credit_card,debt_consolidation,home_improvement,house,major_purchase,medical,moving,other,renewable_energy,small_business,vacation,wedding 1434  1642.198000  7.397273  
+##         16) installment&lt; 152.3 338   405.252800  7.164467 *
+##         17) installment&gt;=152.3 1096  1212.977000  7.469069 *
+##        9) purpose=educational 19    10.257180  8.548947 *
+##      5) grade=B 1778  1525.742000 11.068990  
+##       10) installment&lt; 492.86 1390  1169.855000 10.987450  
+##         20) installment&lt; 261.28 728   615.962900 10.891280 *
+##         21) installment&gt;=261.28 662   539.752800 11.093220 *
+##       11) installment&gt;=492.86 388   313.543100 11.361080  
+##         22) loan_amnt&gt;=15687.5 344   292.092900 11.291980 *
+##         23) loan_amnt&lt; 15687.5 44     6.963718 11.901360 *
+##    3) grade=C,D,E,F,G 2750 15687.740000 15.284290  
+##      6) grade=C,D 2065  4560.531000 14.265560  
+##       12) grade=C 1289  1136.124000 13.454010  
+##         24) verification_status=Not Verified 594   568.963600 13.230510 *
+##         25) verification_status=Verified 695   512.126000 13.645040 *
+##       13) grade=D 776  1165.255000 15.613620  
+##         26) term_months&lt; 48 480   650.071100 15.206750 *
+##         27) term_months&gt;=48 296   306.867100 16.273410 *
+##      7) grade=E,F,G 685  2523.660000 18.355340  
+##       14) grade=E 474  1079.467000 17.615630  
+##         28) term_months&lt; 48 165   299.456700 16.869390 *
+##         29) term_months&gt;=48 309   639.061900 18.014110 *
+##       15) grade=F,G 211   602.197600 20.017060  
+##         30) grade=F 154   378.171100 19.526040 *
+##         31) grade=G 57    86.580730 21.343680 *</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/regression%20tree-2.png" width="672" /></p>
+<pre><code>##        sse
+## 1 4130.272</code></pre>
+<pre class="r"><code>sse_tree_3 &lt;- regression_tree_function(5)</code></pre>
+<pre><code>## 
+## Regression tree:
+## rpart(formula = interest_rate ~ loan_amnt + term_months + installment + 
+##     dti + delinq_2yrs + annual_inc + grade + emp_length + home_ownership + 
+##     verification_status + purpose, data = train_lending_club_cleaned_for_tree, 
+##     control = rpart.control(cp = 1e-04, maxdepth = x))
+## 
+## Variables actually used in tree construction:
+## [1] dti                 emp_length          grade              
+## [4] installment         loan_amnt           purpose            
+## [7] term_months         verification_status
+## 
+## Root node error: 80591/5981 = 13.475
+## 
+## n= 5981 
+## 
+##            CP nsplit rel error   xerror      xstd
+## 1  0.63293796      0  1.000000 1.000202 0.0164692
+## 2  0.13265983      1  0.367062 0.367252 0.0063733
+## 3  0.10675513      2  0.234402 0.234576 0.0062176
+## 4  0.02803216      3  0.127647 0.127767 0.0032780
+## 5  0.01044770      4  0.099615 0.099747 0.0030791
+## 6  0.00258485      5  0.089167 0.089343 0.0026314
+## 7  0.00174892      6  0.086582 0.086782 0.0025541
+## 8  0.00170546      7  0.084833 0.086152 0.0026067
+## 9  0.00127555      8  0.083128 0.084065 0.0025605
+## 10 0.00104031      9  0.081852 0.083710 0.0025514
+## 11 0.00068288     10  0.080812 0.081616 0.0025261
+## 12 0.00052542     11  0.080129 0.080708 0.0023623
+## 13 0.00050935     12  0.079604 0.080503 0.0023568
+## 14 0.00044713     13  0.079094 0.079942 0.0023456
+## 15 0.00036231     14  0.078647 0.079383 0.0023386
+## 16 0.00032513     15  0.078285 0.078713 0.0023052
+## 17 0.00026537     18  0.077310 0.078414 0.0023040
+## 18 0.00024456     19  0.077044 0.078000 0.0023020
+## 19 0.00024010     22  0.076311 0.077882 0.0023001
+## 20 0.00023757     23  0.076070 0.077871 0.0023000
+## 21 0.00017975     24  0.075833 0.077847 0.0023008
+## 22 0.00014208     25  0.075653 0.077757 0.0022990
+## 23 0.00012809     26  0.075511 0.077841 0.0022997
+## 24 0.00010000     27  0.075383 0.077702 0.0022983
+## n= 5981 
+## 
+## node), split, n, deviance, yval
+##       * denotes terminal node
+## 
+##  1) root 5981 80591.420000 12.118810  
+##    2) grade=A,B 3231 13894.310000  9.424568  
+##      4) grade=A 1453  1677.326000  7.412333  
+##        8) purpose=car,credit_card,debt_consolidation,home_improvement,house,major_purchase,medical,moving,other,renewable_energy,small_business,vacation,wedding 1434  1642.198000  7.397273  
+##         16) installment&lt; 152.3 338   405.252800  7.164467  
+##           32) installment&gt;=150.475 21    25.085060  6.011429 *
+##           33) installment&lt; 150.475 317   350.398700  7.240852 *
+##         17) installment&gt;=152.3 1096  1212.977000  7.469069  
+##           34) emp_length=n/a 29    21.850620  6.663103 *
+##           35) emp_length=&lt; 2 years,&gt; 5 years,2-5 years 1067  1171.776000  7.490975 *
+##        9) purpose=educational 19    10.257180  8.548947 *
+##      5) grade=B 1778  1525.742000 11.068990  
+##       10) installment&lt; 492.86 1390  1169.855000 10.987450  
+##         20) installment&lt; 261.28 728   615.962900 10.891280  
+##           40) loan_amnt&gt;=6350 237   203.923700 10.643590 *
+##           41) loan_amnt&lt; 6350 491   390.480800 11.010840 *
+##         21) installment&gt;=261.28 662   539.752800 11.093220  
+##           42) installment&gt;=272.555 604   495.842500 11.034920 *
+##           43) installment&lt; 272.555 58    20.478390 11.700340 *
+##       11) installment&gt;=492.86 388   313.543100 11.361080  
+##         22) loan_amnt&gt;=15687.5 344   292.092900 11.291980  
+##           44) dti&lt; 16.64 228   201.328600 11.161840 *
+##           45) dti&gt;=16.64 116    79.313820 11.547760 *
+##         23) loan_amnt&lt; 15687.5 44     6.963718 11.901360 *
+##    3) grade=C,D,E,F,G 2750 15687.740000 15.284290  
+##      6) grade=C,D 2065  4560.531000 14.265560  
+##       12) grade=C 1289  1136.124000 13.454010  
+##         24) verification_status=Not Verified 594   568.963600 13.230510  
+##           48) term_months&lt; 48 517   491.726500 13.161220 *
+##           49) term_months&gt;=48 77    58.090890 13.695710 *
+##         25) verification_status=Verified 695   512.126000 13.645040  
+##           50) loan_amnt&lt; 11650 311   232.170000 13.509610 *
+##           51) loan_amnt&gt;=11650 384   269.633400 13.754710 *
+##       13) grade=D 776  1165.255000 15.613620  
+##         26) term_months&lt; 48 480   650.071100 15.206750  
+##           52) verification_status=Not Verified 238   379.590000 14.930460 *
+##           53) verification_status=Verified 242   234.445900 15.478470 *
+##         27) term_months&gt;=48 296   306.867100 16.273410  
+##           54) installment&lt; 293.35 105    89.263200 15.849810 *
+##           55) installment&gt;=293.35 191   188.405100 16.506280 *
+##      7) grade=E,F,G 685  2523.660000 18.355340  
+##       14) grade=E 474  1079.467000 17.615630  
+##         28) term_months&lt; 48 165   299.456700 16.869390  
+##           56) verification_status=Not Verified 68    96.223180 16.273680 *
+##           57) verification_status=Verified 97   162.184600 17.287010 *
+##         29) term_months&gt;=48 309   639.061900 18.014110  
+##           58) installment&lt; 252.195 71   181.543100 17.060420 *
+##           59) installment&gt;=252.195 238   373.678600 18.298610 *
+##       15) grade=F,G 211   602.197600 20.017060  
+##         30) grade=F 154   378.171100 19.526040  
+##           60) term_months&lt; 48 40    70.164480 18.146750 *
+##           61) term_months&gt;=48 114   205.208200 20.010000 *
+##         31) grade=G 57    86.580730 21.343680  
+##           62) term_months&lt; 48 12    10.472830 20.157500 *
+##           63) term_months&gt;=48 45    54.721000 21.660000 *</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/regression%20tree-3.png" width="672" /></p>
+<pre><code>##        sse
+## 1 3963.935</code></pre>
+<pre class="r"><code>sse_tree_4 &lt;- regression_tree_function(30)</code></pre>
+<pre><code>## 
+## Regression tree:
+## rpart(formula = interest_rate ~ loan_amnt + term_months + installment + 
+##     dti + delinq_2yrs + annual_inc + grade + emp_length + home_ownership + 
+##     verification_status + purpose, data = train_lending_club_cleaned_for_tree, 
+##     control = rpart.control(cp = 1e-04, maxdepth = x))
+## 
+## Variables actually used in tree construction:
+##  [1] annual_inc          dti                 emp_length         
+##  [4] grade               home_ownership      installment        
+##  [7] loan_amnt           purpose             term_months        
+## [10] verification_status
+## 
+## Root node error: 80591/5981 = 13.475
+## 
+## n= 5981 
+## 
+##            CP nsplit rel error   xerror      xstd
+## 1  0.63293796      0  1.000000 1.000283 0.0164682
+## 2  0.13265983      1  0.367062 0.367351 0.0063744
+## 3  0.10675513      2  0.234402 0.234580 0.0062176
+## 4  0.02803216      3  0.127647 0.127809 0.0032790
+## 5  0.01044770      4  0.099615 0.099753 0.0030785
+## 6  0.00258485      5  0.089167 0.089336 0.0026376
+## 7  0.00174892      6  0.086582 0.086778 0.0025609
+## 8  0.00170546      7  0.084833 0.085410 0.0026034
+## 9  0.00127555      8  0.083128 0.084160 0.0025703
+## 10 0.00104031      9  0.081852 0.083664 0.0025526
+## 11 0.00068288     10  0.080812 0.081634 0.0025296
+## 12 0.00052542     11  0.080129 0.080864 0.0023733
+## 13 0.00050935     12  0.079604 0.080947 0.0023797
+## 14 0.00049781     13  0.079094 0.080834 0.0023762
+## 15 0.00044713     14  0.078597 0.080140 0.0023660
+## 16 0.00036231     15  0.078150 0.079562 0.0023569
+## 17 0.00032513     16  0.077787 0.078697 0.0023255
+## 18 0.00031413     19  0.076812 0.078081 0.0023236
+## 19 0.00031160     20  0.076498 0.078076 0.0023234
+## 20 0.00030412     27  0.074130 0.077885 0.0023197
+## 21 0.00026537     28  0.073826 0.077034 0.0023202
+## 22 0.00024954     29  0.073561 0.076533 0.0023230
+## 23 0.00024456     33  0.072563 0.076425 0.0023275
+## 24 0.00023795     36  0.071829 0.076048 0.0023290
+## 25 0.00023757     38  0.071353 0.075892 0.0023287
+## 26 0.00022841     39  0.071115 0.075838 0.0023307
+## 27 0.00021335     40  0.070887 0.075450 0.0023300
+## 28 0.00020868     43  0.070238 0.074925 0.0023326
+## 29 0.00020420     44  0.070030 0.074976 0.0023372
+## 30 0.00019842     45  0.069826 0.074533 0.0023362
+## 31 0.00019658     46  0.069627 0.074467 0.0023357
+## 32 0.00018639     51  0.068585 0.074409 0.0023395
+## 33 0.00017975     52  0.068399 0.074470 0.0023477
+## 34 0.00017868     53  0.068219 0.074461 0.0023213
+## 35 0.00017510     56  0.067683 0.074229 0.0023189
+## 36 0.00016641     59  0.067158 0.074410 0.0023232
+## 37 0.00016381     60  0.066991 0.074222 0.0023198
+## 38 0.00015576     64  0.066336 0.074492 0.0023254
+## 39 0.00015574     66  0.066025 0.074291 0.0023250
+## 40 0.00015506     67  0.065869 0.074352 0.0023248
+## 41 0.00014581     68  0.065714 0.074298 0.0023257
+## 42 0.00014536     72  0.065131 0.074297 0.0023276
+## 43 0.00014444     73  0.064985 0.074044 0.0023262
+## 44 0.00014208     76  0.064552 0.073944 0.0023277
+## 45 0.00014108     77  0.064410 0.073860 0.0023284
+## 46 0.00014045     80  0.063987 0.073678 0.0023280
+## 47 0.00013907     82  0.063706 0.073597 0.0023257
+## 48 0.00013694     83  0.063567 0.073547 0.0023276
+## 49 0.00013657     84  0.063430 0.073343 0.0023270
+## 50 0.00013633     85  0.063293 0.073345 0.0023278
+## 51 0.00013619     86  0.063157 0.073345 0.0023278
+## 52 0.00013592     88  0.062884 0.073279 0.0023272
+## 53 0.00013560     89  0.062748 0.073286 0.0023275
+## 54 0.00013527     90  0.062613 0.073289 0.0023272
+## 55 0.00013510     91  0.062478 0.073297 0.0023272
+## 56 0.00013431     94  0.062072 0.073290 0.0023274
+## 57 0.00013419     95  0.061938 0.073290 0.0023274
+## 58 0.00013080     97  0.061670 0.073188 0.0023288
+## 59 0.00013032    102  0.060959 0.073292 0.0023303
+## 60 0.00012972    104  0.060698 0.073320 0.0023317
+## 61 0.00012947    105  0.060568 0.073298 0.0023316
+## 62 0.00012926    106  0.060439 0.073294 0.0023315
+## 63 0.00012849    107  0.060310 0.073266 0.0023315
+## 64 0.00012809    108  0.060181 0.073396 0.0023323
+## 65 0.00012304    109  0.060053 0.073388 0.0023346
+## 66 0.00011950    110  0.059930 0.073488 0.0023424
+## 67 0.00011495    112  0.059691 0.073421 0.0023413
+## 68 0.00011403    113  0.059576 0.073402 0.0023441
+## 69 0.00011344    114  0.059462 0.073480 0.0023465
+## 70 0.00011160    119  0.058861 0.073440 0.0023515
+## 71 0.00010794    120  0.058750 0.073556 0.0023521
+## 72 0.00010702    121  0.058642 0.073654 0.0023538
+## 73 0.00010565    122  0.058535 0.073797 0.0023596
+## 74 0.00010414    124  0.058324 0.073745 0.0023609
+## 75 0.00010308    126  0.058115 0.073693 0.0023599
+## 76 0.00010000    127  0.058012 0.073753 0.0023627
+## n= 5981 
+## 
+## node), split, n, deviance, yval
+##       * denotes terminal node
+## 
+##     1) root 5981 8.059142e+04 12.118810  
+##       2) grade=A,B 3231 1.389431e+04  9.424568  
+##         4) grade=A 1453 1.677326e+03  7.412333  
+##           8) purpose=car,credit_card,debt_consolidation,home_improvement,house,major_purchase,medical,moving,other,renewable_energy,small_business,vacation,wedding 1434 1.642198e+03  7.397273  
+##            16) installment&lt; 152.3 338 4.052528e+02  7.164467  
+##              32) installment&gt;=150.475 21 2.508506e+01  6.011429 *
+##              33) installment&lt; 150.475 317 3.503987e+02  7.240852  
+##                66) annual_inc&lt; 135000 309 3.370229e+02  7.211683  
+##                 132) home_ownership=MORTGAGE,OWN 159 1.709376e+02  7.045975 *
+##                 133) home_ownership=OTHER,RENT 150 1.570913e+02  7.387333 *
+##                67) annual_inc&gt;=135000 8 2.958150e+00  8.367500 *
+##            17) installment&gt;=152.3 1096 1.212977e+03  7.469069  
+##              34) emp_length=n/a 29 2.185062e+01  6.663103 *
+##              35) emp_length=&lt; 2 years,&gt; 5 years,2-5 years 1067 1.171776e+03  7.490975  
+##                70) dti&gt;=0.495 1050 1.140037e+03  7.477048  
+##                 140) installment&lt; 310.375 578 6.347367e+02  7.389221  
+##                   280) installment&gt;=289.4 77 7.857368e+01  6.751688  
+##                     560) loan_amnt&gt;=9725 58 3.621766e+01  6.490862  
+##                      1120) installment&lt; 305.48 36 2.115176e+01  6.151944 *
+##                      1121) installment&gt;=305.48 22 4.164145e+00  7.045455 *
+##                     561) loan_amnt&lt; 9725 19 2.636532e+01  7.547895 *
+##                   281) installment&lt; 289.4 501 5.200565e+02  7.487206  
+##                     562) emp_length=&gt; 5 years 193 1.776864e+02  7.287098 *
+##                     563) emp_length=&lt; 2 years,2-5 years 308 3.297991e+02  7.612597  
+##                      1126) loan_amnt&gt;=7325 103 1.173686e+02  7.339126  
+##                        2252) installment&lt; 245.885 35 2.992479e+01  6.829429  
+##                          4504) installment&gt;=239.785 11 1.311600e+00  6.000000 *
+##                          4505) installment&lt; 239.785 24 1.757730e+01  7.209583 *
+##                        2253) installment&gt;=245.885 68 7.367105e+01  7.601471  
+##                          4506) purpose=credit_card,debt_consolidation,home_improvement,major_purchase,other,wedding 61 5.552267e+01  7.442951 *
+##                          4507) purpose=car,house,moving,small_business 7 3.257943e+00  8.982857 *
+##                      1127) loan_amnt&lt; 7325 205 2.008572e+02  7.750000  
+##                        2254) installment&lt; 224.61 197 1.857443e+02  7.701827  
+##                          4508) purpose=car,house,major_purchase,moving,wedding 49 4.687240e+01  7.358571 *
+##                          4509) purpose=credit_card,debt_consolidation,home_improvement,medical,other,small_business,vacation 148 1.311871e+02  7.815473  
+##                            9018) loan_amnt&gt;=6975 29 1.546810e+01  7.369655 *
+##                            9019) loan_amnt&lt; 6975 119 1.085505e+02  7.924118  
+##                             18038) installment&lt; 188.26 80 6.502948e+01  7.662000  
+##                               36076) loan_amnt&gt;=5325 36 2.379606e+01  7.336111 *
+##                               36077) loan_amnt&lt; 5325 44 3.428192e+01  7.928636  
+##                                 72154) installment&lt; 157.365 35 1.459836e+01  7.598000 *
+##                                 72155) installment&gt;=157.365 9 9.776222e-01  9.214444 *
+##                             18039) installment&gt;=188.26 39 2.674977e+01  8.461795  
+##                               36078) loan_amnt&gt;=6062.5 26 1.892791e+01  8.182692  
+##                                 72156) installment&lt; 201.93 8 1.721400e+00  7.220000 *
+##                                 72157) installment&gt;=201.93 18 6.497094e+00  8.610556 *
+##                               36079) loan_amnt&lt; 6062.5 13 1.745800e+00  9.020000 *
+##                        2255) installment&gt;=224.61 8 3.398188e+00  8.936250 *
+##                 141) installment&gt;=310.375 472 4.953821e+02  7.584597  
+##                   282) loan_amnt&gt;=10075 390 4.083676e+02  7.439282  
+##                     564) installment&lt; 372.475 118 1.213041e+02  6.984746  
+##                      1128) loan_amnt&gt;=11950 58 3.318462e+01  6.521207  
+##                        2256) term_months&lt; 48 49 1.722600e+01  6.352041  
+##                          4512) installment&lt; 367 23 1.264687e+00  5.813043 *
+##                          4513) installment&gt;=367 26 3.368465e+00  6.828846 *
+##                        2257) term_months&gt;=48 9 6.921956e+00  7.442222 *
+##                      1129) loan_amnt&lt; 11950 60 6.361022e+01  7.432833  
+##                        2258) installment&lt; 344.47 40 3.498770e+01  7.130250 *
+##                        2259) installment&gt;=344.47 20 1.763572e+01  8.038000 *
+##                     565) installment&gt;=372.475 272 2.521080e+02  7.636471  
+##                      1130) loan_amnt&gt;=13025 202 1.784099e+02  7.486238  
+##                        2260) installment&lt; 430.51 20 1.115552e+01  6.522000 *
+##                        2261) installment&gt;=430.51 182 1.466159e+02  7.592198  
+##                          4522) loan_amnt&gt;=14475 165 1.284173e+02  7.536182  
+##                            9044) installment&lt; 464.12 14 3.256321e+00  6.623571 *
+##                            9045) installment&gt;=464.12 151 1.124199e+02  7.620795  
+##                             18090) loan_amnt&gt;=15175 119 9.072009e+01  7.497395  
+##                               36180) installment&lt; 495.795 16 5.983800e+00  6.720000 *
+##                               36181) installment&gt;=495.795 103 7.356475e+01  7.618155 *
+##                             18091) loan_amnt&lt; 15175 32 1.314910e+01  8.079687  
+##                               36182) installment&lt; 470.795 24 9.248958e-01  7.750417 *
+##                               36183) installment&gt;=470.795 8 1.815950e+00  9.067500 *
+##                          4523) loan_amnt&lt; 14475 17 1.265581e+01  8.135882 *
+##                      1131) loan_amnt&lt; 13025 70 5.598260e+01  8.070000  
+##                        2262) home_ownership=MORTGAGE 42 3.096944e+01  7.811190 *
+##                        2263) home_ownership=OWN,RENT 28 1.798001e+01  8.458214  
+##                          4526) installment&lt; 378.29 11 3.340727e-01  7.715455 *
+##                          4527) installment&gt;=378.29 17 7.650576e+00  8.938824 *
+##                   283) loan_amnt&lt; 10075 82 3.961041e+01  8.275732  
+##                     566) installment&lt; 313.87 43 3.100707e+00  7.696977 *
+##                     567) installment&gt;=313.87 39 6.226123e+00  8.913846 *
+##                71) dti&lt; 0.495 17 1.895658e+01  8.351176 *
+##           9) purpose=educational 19 1.025718e+01  8.548947 *
+##         5) grade=B 1778 1.525742e+03 11.068990  
+##          10) installment&lt; 492.86 1390 1.169855e+03 10.987450  
+##            20) installment&lt; 261.28 728 6.159629e+02 10.891280  
+##              40) loan_amnt&gt;=6350 237 2.039237e+02 10.643590  
+##                80) annual_inc&gt;=31100 201 1.667322e+02 10.555120 *
+##                81) annual_inc&lt; 31100 36 2.683627e+01 11.137500 *
+##              41) loan_amnt&lt; 6350 491 3.904808e+02 11.010840  
+##                82) installment&lt; 196.99 452 3.519484e+02 10.953960  
+##                 164) installment&gt;=188.695 35 1.316680e+01 10.330000 *
+##                 165) installment&lt; 188.695 417 3.240115e+02 11.006330  
+##                   330) installment&lt; 164.17 352 2.623026e+02 10.913120  
+##                     660) loan_amnt&gt;=4900 78 3.835315e+01 10.490770  
+##                      1320) term_months&lt; 48 52 1.949708e+01 10.278460  
+##                        2640) installment&lt; 161.865 23 3.716548e+00  9.733913 *
+##                        2641) installment&gt;=161.865 29 3.551097e+00 10.710340 *
+##                      1321) term_months&gt;=48 26 1.182445e+01 10.915380 *
+##                     661) loan_amnt&lt; 4900 274 2.060745e+02 11.033360  
+##                      1322) purpose=major_purchase,medical,small_business,wedding 41 2.974944e+01 10.551220 *
+##                      1323) purpose=car,credit_card,debt_consolidation,educational,home_improvement,house,moving,other,renewable_energy,vacation 233 1.651172e+02 11.118200 *
+##                   331) installment&gt;=164.17 65 4.209102e+01 11.511080  
+##                     662) loan_amnt&gt;=5112.5 30 1.792582e+01 10.961670 *
+##                     663) loan_amnt&lt; 5112.5 35 7.347760e+00 11.982000 *
+##                83) installment&gt;=196.99 39 2.012480e+01 11.670000 *
+##            21) installment&gt;=261.28 662 5.397528e+02 11.093220  
+##              42) installment&gt;=272.555 604 4.958425e+02 11.034920  
+##                84) installment&gt;=477.755 49 2.967808e+01 10.479390 *
+##                85) installment&lt; 477.755 555 4.497073e+02 11.083960  
+##                 170) installment&lt; 326.56 181 1.417599e+02 10.875080  
+##                   340) loan_amnt&gt;=9650 93 6.053392e+01 10.572900  
+##                     680) term_months&lt; 48 42 1.542931e+01 10.218570 *
+##                     681) term_months&gt;=48 51 3.548887e+01 10.864710  
+##                      1362) loan_amnt&gt;=14875 13 5.514508e+00 10.023850 *
+##                      1363) loan_amnt&lt; 14875 38 1.763829e+01 11.152370 *
+##                   341) loan_amnt&lt; 9650 88 6.375937e+01 11.194430  
+##                     682) installment&lt; 295.975 40 1.993944e+01 10.863000 *
+##                     683) installment&gt;=295.975 48 3.576448e+01 11.470620  
+##                      1366) loan_amnt&gt;=9225 24 2.397980e+01 11.052080  
+##                        2732) installment&lt; 310.025 10 2.436400e+00 10.080000 *
+##                        2733) installment&gt;=310.025 14 5.344321e+00 11.746430 *
+##                      1367) loan_amnt&lt; 9225 24 3.376183e+00 11.889170 *
+##                 171) installment&gt;=326.56 374 2.962281e+02 11.185050  
+##                   342) installment&gt;=336.915 300 2.587047e+02 11.075070  
+##                     684) installment&lt; 392.905 145 1.162446e+02 10.821450  
+##                      1368) installment&gt;=382.065 60 1.932387e+01 10.397670 *
+##                      1369) installment&lt; 382.065 85 7.853907e+01 11.120590 *
+##                     685) installment&gt;=392.905 155 1.244084e+02 11.312320  
+##                      1370) loan_amnt&gt;=12187.5 123 1.091180e+02 11.177970  
+##                        2740) loan_amnt&lt; 16250 80 6.306639e+01 10.965380 *
+##                        2741) loan_amnt&gt;=16250 43 3.570918e+01 11.573490  
+##                          5482) installment&lt; 435.49 23 2.109797e+01 11.114780  
+##                           10964) loan_amnt&gt;=19250 11 2.738818e+00 10.257270 *
+##                           10965) loan_amnt&lt; 19250 12 2.856092e+00 11.900830 *
+##                          5483) installment&gt;=435.49 20 4.206380e+00 12.101000 *
+##                      1371) loan_amnt&lt; 12187.5 32 4.535750e+00 11.828750 *
+##                   343) installment&lt; 336.915 74 1.918163e+01 11.630950  
+##                     686) installment&lt; 331.14 43 6.069577e+00 11.303490 *
+##                     687) installment&gt;=331.14 31 2.105574e+00 12.085160 *
+##              43) installment&lt; 272.555 58 2.047839e+01 11.700340  
+##                86) installment&lt; 264.36 26 1.331246e+00 11.185380 *
+##                87) installment&gt;=264.36 32 6.650350e+00 12.118750 *
+##          11) installment&gt;=492.86 388 3.135431e+02 11.361080  
+##            22) loan_amnt&gt;=15687.5 344 2.920929e+02 11.291980  
+##              44) dti&lt; 16.64 228 2.013286e+02 11.161840 *
+##              45) dti&gt;=16.64 116 7.931382e+01 11.547760  
+##                90) installment&lt; 523.625 7 2.653943e+00 10.467140 *
+##                91) installment&gt;=523.625 109 6.796082e+01 11.617160 *
+##            23) loan_amnt&lt; 15687.5 44 6.963718e+00 11.901360 *
+##       3) grade=C,D,E,F,G 2750 1.568774e+04 15.284290  
+##         6) grade=C,D 2065 4.560531e+03 14.265560  
+##          12) grade=C 1289 1.136124e+03 13.454010  
+##            24) verification_status=Not Verified 594 5.689636e+02 13.230510  
+##              48) term_months&lt; 48 517 4.917265e+02 13.161220  
+##                96) purpose=credit_card,educational,renewable_energy,small_business 111 1.142982e+02 12.835230 *
+##                97) purpose=car,debt_consolidation,home_improvement,house,major_purchase,medical,moving,other,vacation,wedding 406 3.624072e+02 13.250340 *
+##              49) term_months&gt;=48 77 5.809089e+01 13.695710 *
+##            25) verification_status=Verified 695 5.121260e+02 13.645040  
+##              50) loan_amnt&lt; 11650 311 2.321700e+02 13.509610 *
+##              51) loan_amnt&gt;=11650 384 2.696334e+02 13.754710 *
+##          13) grade=D 776 1.165255e+03 15.613620  
+##            26) term_months&lt; 48 480 6.500711e+02 15.206750  
+##              52) verification_status=Not Verified 238 3.795900e+02 14.930460  
+##               104) purpose=car,credit_card,debt_consolidation,educational,house,medical,moving,small_business,wedding 191 3.039558e+02 14.826070  
+##                 208) installment&lt; 345.605 110 2.131309e+02 14.589090  
+##                   416) purpose=credit_card 12 8.190617e+01 13.688330 *
+##                   417) purpose=car,debt_consolidation,educational,medical,moving,small_business,wedding 98 1.202962e+02 14.699390 *
+##                 209) installment&gt;=345.605 81 7.625774e+01 15.147900 *
+##               105) purpose=home_improvement,major_purchase,other,vacation 47 6.509477e+01 15.354680  
+##                 210) annual_inc&gt;=82000 10 1.319864e+01 14.546000 *
+##                 211) annual_inc&lt; 82000 37 4.358901e+01 15.573240 *
+##              53) verification_status=Verified 242 2.344459e+02 15.478470  
+##               106) purpose=car,debt_consolidation,educational,major_purchase,moving,small_business,vacation,wedding 169 1.499715e+02 15.337040  
+##                 212) dti&lt; 4.075 11 4.500055e+00 14.406360 *
+##                 213) dti&gt;=4.075 158 1.352804e+02 15.401840  
+##                   426) loan_amnt&gt;=2550 150 1.159661e+02 15.334270 *
+##                   427) loan_amnt&lt; 2550 8 5.788888e+00 16.668750 *
+##               107) purpose=credit_card,home_improvement,medical,other 73 7.326817e+01 15.805890 *
+##            27) term_months&gt;=48 296 3.068671e+02 16.273410  
+##              54) installment&lt; 293.35 105 8.926320e+01 15.849810 *
+##              55) installment&gt;=293.35 191 1.884051e+02 16.506280  
+##               110) loan_amnt&gt;=12275 173 1.673013e+02 16.420810  
+##                 220) installment&lt; 361.555 35 3.175547e+01 15.945430 *
+##                 221) installment&gt;=361.555 138 1.256302e+02 16.541380 *
+##               111) loan_amnt&lt; 12275 18 7.692511e+00 17.327780 *
+##         7) grade=E,F,G 685 2.523660e+03 18.355340  
+##          14) grade=E 474 1.079467e+03 17.615630  
+##            28) term_months&lt; 48 165 2.994567e+02 16.869390  
+##              56) verification_status=Not Verified 68 9.622318e+01 16.273680  
+##               112) loan_amnt&gt;=14500 16 1.958630e+01 15.567500 *
+##               113) loan_amnt&lt; 14500 52 6.620285e+01 16.490960  
+##                 226) dti&gt;=15.77 15 1.265797e+01 15.851330 *
+##                 227) dti&lt; 15.77 37 4.492010e+01 16.750270 *
+##              57) verification_status=Verified 97 1.621846e+02 17.287010  
+##               114) purpose=major_purchase,moving,other,small_business 23 1.727610e+01 16.610430 *
+##               115) purpose=car,credit_card,debt_consolidation,home_improvement 74 1.311079e+02 17.497300  
+##                 230) installment&gt;=204.975 67 1.089829e+02 17.364930  
+##                   460) installment&lt; 721.47 42 6.180556e+01 16.976430 *
+##                   461) installment&gt;=721.47 25 3.018866e+01 18.017600 *
+##                 231) installment&lt; 204.975 7 9.714171e+00 18.764290 *
+##            29) term_months&gt;=48 309 6.390619e+02 18.014110  
+##              58) installment&lt; 252.195 71 1.815431e+02 17.060420  
+##               116) dti&gt;=19.755 14 1.273104e+02 16.267860 *
+##               117) dti&lt; 19.755 57 4.327842e+01 17.255090 *
+##              59) installment&gt;=252.195 238 3.736786e+02 18.298610  
+##               118) installment&lt; 761.59 190 2.988029e+02 18.134680  
+##                 236) loan_amnt&gt;=12500 151 2.329109e+02 18.016360  
+##                   472) installment&lt; 394.79 39 4.716414e+01 17.474100  
+##                     944) loan_amnt&gt;=14750 16 1.325764e+01 16.888120 *
+##                     945) loan_amnt&lt; 14750 23 2.459073e+01 17.881740  
+##                      1890) installment&lt; 354.175 12 4.614692e+00 17.199170 *
+##                      1891) installment&gt;=354.175 11 8.286055e+00 18.626360 *
+##                   473) installment&gt;=394.79 112 1.702860e+02 18.205180  
+##                     946) loan_amnt&gt;=16250 100 1.349067e+02 18.023100  
+##                      1892) purpose=car,credit_card,debt_consolidation,house,major_purchase 82 1.030002e+02 17.869760  
+##                        3784) emp_length=2-5 years,n/a 26 2.160898e+01 17.400770 *
+##                        3785) emp_length=&lt; 2 years,&gt; 5 years 56 7.301745e+01 18.087500  
+##                          7570) annual_inc&gt;=48006 47 5.265797e+01 17.860850 *
+##                          7571) annual_inc&lt; 48006 9 5.336689e+00 19.271110 *
+##                      1893) purpose=home_improvement,moving,other,small_business 18 2.119445e+01 18.721670 *
+##                     947) loan_amnt&lt; 16250 12 4.436825e+00 19.722500 *
+##                 237) loan_amnt&lt; 12500 39 5.559219e+01 18.592820  
+##                   474) installment&lt; 300.03 21 2.772570e+01 17.870480  
+##                     948) loan_amnt&gt;=11475 7 1.938743e+00 16.777140 *
+##                     949) loan_amnt&lt; 11475 14 1.323549e+01 18.417140 *
+##                   475) installment&gt;=300.03 18 4.125444e+00 19.435560 *
+##               119) installment&gt;=761.59 48 4.955930e+01 18.947500  
+##                 238) installment&lt; 911.005 36 4.098156e+01 18.726940  
+##                   476) installment&gt;=804.68 21 1.960600e+01 18.170000  
+##                     952) installment&lt; 891.15 10 6.182000e+00 17.430000 *
+##                     953) installment&gt;=891.15 11 2.969818e+00 18.842730 *
+##                   477) installment&lt; 804.68 15 5.742133e+00 19.506670 *
+##                 239) installment&gt;=911.005 12 1.572892e+00 19.609170 *
+##          15) grade=F,G 211 6.021976e+02 20.017060  
+##            30) grade=F 154 3.781711e+02 19.526040  
+##              60) term_months&lt; 48 40 7.016448e+01 18.146750  
+##               120) verification_status=Not Verified 22 3.841728e+01 17.713180 *
+##               121) verification_status=Verified 18 2.255700e+01 18.676670 *
+##              61) term_months&gt;=48 114 2.052082e+02 20.010000  
+##               122) installment&lt; 804.69 91 1.540539e+02 19.711760  
+##                 244) purpose=car,credit_card,home_improvement,house,moving,vacation 23 2.181697e+01 19.035220 *
+##                 245) purpose=debt_consolidation,major_purchase,other,small_business,wedding 68 1.181490e+02 19.940590  
+##                   490) installment&lt; 395.015 25 3.638578e+01 19.489200  
+##                     980) dti&gt;=19.5 8 6.940000e-01 18.530000 *
+##                     981) dti&lt; 19.5 17 2.486749e+01 19.940590 *
+##                   491) installment&gt;=395.015 43 7.370791e+01 20.203020  
+##                     982) loan_amnt&gt;=18200 32 4.006455e+01 19.801250 *
+##                     983) loan_amnt&lt; 18200 11 1.345096e+01 21.371820 *
+##               123) installment&gt;=804.69 23 1.103480e+01 21.190000 *
+##            31) grade=G 57 8.658073e+01 21.343680  
+##              62) term_months&lt; 48 12 1.047283e+01 20.157500 *
+##              63) term_months&gt;=48 45 5.472100e+01 21.660000  
+##               126) installment&lt; 271.01 7 1.161343e+00 20.602860 *
+##               127) installment&gt;=271.01 38 4.429575e+01 21.854740 *</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/regression%20tree-4.png" width="672" /></p>
+<pre><code>##        sse
+## 1 3676.526</code></pre>
+<pre class="r"><code>#store the outputs in a dataframe
+sse_by_depth_regression_tree &lt;- data.frame(sse = c(sse_tree_1,sse_tree_2,sse_tree_3,sse_tree_4))
+
+#pivot longer the outputs
+sse_by_depth_regression_tree &lt;- sse_by_depth_regression_tree %&gt;% 
+  pivot_longer(
+    cols = c(1:4),
+    names_to = &quot;sse&quot;, 
+    values_to = &quot;values&quot;
+  )
+
+#replace the sse.see values by the number of features
+sse_by_depth_regression_tree$depth_no &lt;- c(3,4,5,30)
+sse_by_depth_regression_tree[,c(2:3)]</code></pre>
+<pre><code>## # A tibble: 4 x 2
+##   values depth_no
+##    &lt;dbl&gt;    &lt;dbl&gt;
+## 1  4479.        3
+## 2  4130.        4
+## 3  3964.        5
+## 4  3677.       30</code></pre>
+<pre class="r"><code>ggplot(sse_by_depth_regression_tree, aes(x=depth_no,y=values,group = 1))+
+  geom_line(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+      title = paste(&quot;SSE following the number of levels included in the regression tree&quot;),
+      x     = &quot;Number of levels&quot;,
+      y     = &quot;SSE&quot;)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/regression%20tree-5.png" width="672" /></p>
+</div>
+<div id="random-tree" class="section level2">
+<h2>1.2. Random tree</h2>
+<pre class="r"><code>#create a function to try different number of features used in our random tree
+random_tree_function &lt;- function(x){
+
+#remove NAs because they are not supported for randon trees
+train_lending_club_cleaned_for_random_tree &lt;- na.omit(train_lending_club_cleaned_for_tree)
+test_lending_club_cleaned_for_random_tree &lt;- na.omit(test_lending_club_cleaned_for_tree)
+
+model_2_random_tree &lt;- randomForest(interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree, ntree = 50, mtry = x, importance = TRUE)
+print(model_2_random_tree)
+
+#compute the sse
+sse &lt;- data.frame(pred = predict(model_2_random_tree,test_lending_club_cleaned_for_random_tree)) %&gt;%
+   mutate(obs = test_lending_club_cleaned_for_tree$interest_rate,
+          sq_err = (obs - pred)^2) %&gt;%
+   summarize(sse = sum(sq_err))
+print(sse)
+}#end of random_tree_function
+
+#store the outputs of the function
+sse_2 &lt;- random_tree_function(2)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 2
+## 
+##           Mean of squared residuals: 1.38899
+##                     % Var explained: 89.69
+##        sse
+## 1 4861.057</code></pre>
+<pre class="r"><code>sse_3 &lt;- random_tree_function(3)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 3
+## 
+##           Mean of squared residuals: 1.035694
+##                     % Var explained: 92.31
+##        sse
+## 1 3689.938</code></pre>
+<pre class="r"><code>sse_4 &lt;- random_tree_function(4)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 4
+## 
+##           Mean of squared residuals: 0.9177982
+##                     % Var explained: 93.19
+##        sse
+## 1 3357.809</code></pre>
+<pre class="r"><code>sse_5 &lt;- random_tree_function(5)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 5
+## 
+##           Mean of squared residuals: 0.8917948
+##                     % Var explained: 93.38
+##        sse
+## 1 3207.838</code></pre>
+<pre class="r"><code>sse_6 &lt;- random_tree_function(6)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 6
+## 
+##           Mean of squared residuals: 0.8552826
+##                     % Var explained: 93.65
+##       sse
+## 1 3148.31</code></pre>
+<pre class="r"><code>sse_7 &lt;- random_tree_function(7)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 7
+## 
+##           Mean of squared residuals: 0.8316517
+##                     % Var explained: 93.83
+##        sse
+## 1 3052.661</code></pre>
+<pre class="r"><code>sse_8 &lt;- random_tree_function(8)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 8
+## 
+##           Mean of squared residuals: 0.8338963
+##                     % Var explained: 93.81
+##        sse
+## 1 3080.011</code></pre>
+<pre class="r"><code>sse_9 &lt;- random_tree_function(9)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 9
+## 
+##           Mean of squared residuals: 0.8231044
+##                     % Var explained: 93.89
+##        sse
+## 1 2995.206</code></pre>
+<pre class="r"><code>sse_10 &lt;- random_tree_function(10)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 10
+## 
+##           Mean of squared residuals: 0.8163374
+##                     % Var explained: 93.94
+##        sse
+## 1 2922.864</code></pre>
+<pre class="r"><code>sse_11 &lt;- random_tree_function(11)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 11
+## 
+##           Mean of squared residuals: 0.8375706
+##                     % Var explained: 93.78
+##        sse
+## 1 2968.982</code></pre>
+<pre class="r"><code>sse_12 &lt;- random_tree_function(12)</code></pre>
+<pre><code>## 
+## Call:
+##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
+##                Type of random forest: regression
+##                      Number of trees: 50
+## No. of variables tried at each split: 11
+## 
+##           Mean of squared residuals: 0.8205339
+##                     % Var explained: 93.91
+##        sse
+## 1 2993.188</code></pre>
+<pre class="r"><code>#store the outputs in a dataframe
+sse_by_features_included_random_tree &lt;- data.frame(sse = c(sse_2,sse_3,sse_4,sse_5,sse_6,sse_7,sse_8,sse_9,sse_10,sse_11,sse_12))
+
+#pivot longer the outputs
+sse_by_features_included_random_tree &lt;- sse_by_features_included_random_tree %&gt;% 
+  pivot_longer(
+    cols = c(1:11),
+    names_to = &quot;sse&quot;, 
+    values_to = &quot;values&quot;
+  )
+
+#replace the sse.see values by the number of features
+sse_by_features_included_random_tree$features_no &lt;- c(1,2,3,4,5,6,7,8,9,10,11)
+sse_by_features_included_random_tree[,c(2:3)]</code></pre>
+<pre><code>## # A tibble: 11 x 2
+##    values features_no
+##     &lt;dbl&gt;       &lt;dbl&gt;
+##  1  4861.           1
+##  2  3690.           2
+##  3  3358.           3
+##  4  3208.           4
+##  5  3148.           5
+##  6  3053.           6
+##  7  3080.           7
+##  8  2995.           8
+##  9  2923.           9
+## 10  2969.          10
+## 11  2993.          11</code></pre>
+<pre class="r"><code>#plot the number of features in the random tree vs the sse
+ggplot(sse_by_features_included_random_tree, aes(x=features_no,y=values,group = 1))+
+  geom_line(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+      title = paste(&quot;SSE following the number of features included in the random tree&quot;),
+      x     = &quot;Number of features&quot;,
+      y     = &quot;SSE&quot;)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/random%20tree-1.png" width="672" /></p>
+</div>
+</div>
+<div id="knn---k-nearest-neighbors" class="section level1">
+<h1>2. KNN - k-nearest neighbors</h1>
+<pre class="r"><code>#partition our data for knn, keeping only numerical and dummied data
+train_for_knn &lt;- train_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
+test_for_knn &lt;- test_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
+
+#center the partitioned data
+train_for_knn_scaled &lt;- scale(train_for_knn)
+test_for_knn_scaled &lt;- scale(test_for_knn)
+
+train_for_knn_scaled_df &lt;- data.frame(train_for_knn_scaled)
+test_for_knn_scaled_df &lt;- data.frame(test_for_knn_scaled)
+
+#create a function to try different number of observations taken into account
+knn_function &lt;- function(x){
+knn_classification &lt;- knn(train = train_for_knn_scaled_df,
+                      test = test_for_knn_scaled_df,
+                      cl = train_for_knn_scaled_df$interest_rate,
+                      k = x)
+
+#create a df of knn predictions vs observations
+knn_classification_df &lt;- data.frame(knn_classification)
+knn_vs_test &lt;- cbind(knn_classification_df,test_for_knn_scaled_df$interest_rate)
+knn_vs_test_df &lt;- data.frame(knn_vs_test)
+names(knn_vs_test_df)[1] &lt;- &quot;knn_pred&quot;
+names(knn_vs_test_df)[2] &lt;- &quot;observation&quot;
+
+#make columns as numeric to allow for sse computation
+knn_vs_test_df$knn_pred &lt;- as.character(knn_vs_test_df$knn_pred)
+knn_vs_test_df$knn_pred &lt;- as.numeric(knn_vs_test_df$knn_pred)
+
+#compute the sse
+sse_knn &lt;- knn_vs_test_df %&gt;%
+mutate(sq_err = (observation - knn_pred)^2) %&gt;%
+summarize(sse = sum(sq_err))
+print(sse_knn)
+}#end of knn_function
+
+#store the outputs of the function
+sse_knn_1 &lt;- knn_function(1)</code></pre>
+<pre><code>##        sse
+## 1 323.1755</code></pre>
+<pre class="r"><code>sse_knn_2 &lt;- knn_function(2)</code></pre>
+<pre><code>##        sse
+## 1 374.3548</code></pre>
+<pre class="r"><code>sse_knn_3 &lt;- knn_function(3)</code></pre>
+<pre><code>##        sse
+## 1 403.1512</code></pre>
+<pre class="r"><code>sse_knn_4 &lt;- knn_function(4)</code></pre>
+<pre><code>##        sse
+## 1 427.9108</code></pre>
+<pre class="r"><code>sse_knn_5 &lt;- knn_function(5)</code></pre>
+<pre><code>##       sse
+## 1 447.933</code></pre>
+<pre class="r"><code>sse_knn_6 &lt;- knn_function(6)</code></pre>
+<pre><code>##        sse
+## 1 438.7698</code></pre>
+<pre class="r"><code>sse_knn_7 &lt;- knn_function(7)</code></pre>
+<pre><code>##        sse
+## 1 448.0448</code></pre>
+<pre class="r"><code>sse_knn_8 &lt;- knn_function(8)</code></pre>
+<pre><code>##       sse
+## 1 443.116</code></pre>
+<pre class="r"><code>sse_knn_9 &lt;- knn_function(9)</code></pre>
+<pre><code>##        sse
+## 1 460.4036</code></pre>
+<pre class="r"><code>sse_knn_10 &lt;- knn_function(10)</code></pre>
+<pre><code>##        sse
+## 1 466.4389</code></pre>
+<pre class="r"><code>sse_knn_11 &lt;- knn_function(11)</code></pre>
+<pre><code>##        sse
+## 1 445.1656</code></pre>
+<pre class="r"><code>sse_knn_12 &lt;- knn_function(12)</code></pre>
+<pre><code>##        sse
+## 1 455.8859</code></pre>
+<pre class="r"><code>sse_knn_13 &lt;- knn_function(13)</code></pre>
+<pre><code>##        sse
+## 1 449.1155</code></pre>
+<pre class="r"><code>sse_knn_14 &lt;- knn_function(14)</code></pre>
+<pre><code>##        sse
+## 1 445.9815</code></pre>
+<pre class="r"><code>sse_knn_15 &lt;- knn_function(15)</code></pre>
+<pre><code>##       sse
+## 1 460.362</code></pre>
+<pre class="r"><code>#store the outputs in a dataframe
+sse_by_observations_included_knn &lt;- data.frame(sse = c(sse_knn_1,sse_knn_1,sse_knn_2,sse_knn_3,sse_knn_4,sse_knn_5,sse_knn_6,sse_knn_7,sse_knn_8,sse_knn_9,sse_knn_10,sse_knn_11,sse_knn_12,sse_knn_13,sse_knn_14,sse_knn_15))
+sse_by_observations_included_knn</code></pre>
+<pre><code>##    sse.sse sse.sse.1 sse.sse.2 sse.sse.3 sse.sse.4 sse.sse.5 sse.sse.6
+## 1 323.1755  323.1755  374.3548  403.1512  427.9108   447.933  438.7698
+##   sse.sse.7 sse.sse.8 sse.sse.9 sse.sse.10 sse.sse.11 sse.sse.12 sse.sse.13
+## 1  448.0448   443.116  460.4036   466.4389   445.1656   455.8859   449.1155
+##   sse.sse.14 sse.sse.15
+## 1   445.9815    460.362</code></pre>
+<pre class="r"><code>#pivot longer the outputs
+sse_by_observations_included_knn &lt;- sse_by_observations_included_knn %&gt;% 
+  pivot_longer(
+    cols = c(1:16),
+    names_to = &quot;sse&quot;, 
+    values_to = &quot;values&quot;
+  )
+
+#replace the sse values by the number of features
+sse_by_observations_included_knn$observations_no &lt;- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
+sse_by_observations_included_knn[,c(2:3)]</code></pre>
+<pre><code>## # A tibble: 16 x 2
+##    values observations_no
+##     &lt;dbl&gt;           &lt;dbl&gt;
+##  1   323.               1
+##  2   323.               2
+##  3   374.               3
+##  4   403.               4
+##  5   428.               5
+##  6   448.               6
+##  7   439.               7
+##  8   448.               8
+##  9   443.               9
+## 10   460.              10
+## 11   466.              11
+## 12   445.              12
+## 13   456.              13
+## 14   449.              14
+## 15   446.              15
+## 16   460.              16</code></pre>
+<pre class="r"><code>#plot the number of observations in the knn analysis vs the sse
+ggplot(sse_by_observations_included_knn, aes(x=observations_no,y=values,group = 1))+
+  geom_line(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+      title = paste(&quot;SSE following the number of observations included in the knn analysis&quot;),
+      x     = &quot;Number of observations&quot;,
+      y     = &quot;SSE&quot;)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/knn-1.png" width="672" /></p>
+</div>
+<div id="text-mining" class="section level1">
+<h1>3. Text mining</h1>
+<div id="data-formatting-tokenization-and-principal-components-determination" class="section level2">
+<h2>3.1. Data formatting, tokenization and principal components determination</h2>
+<pre class="r"><code>#load the description data in a corpus to format it with the tm package
+review_corpus = Corpus(VectorSource(lending_club_full_raw$desc))
+review_corpus = tm_map(review_corpus, content_transformer(tolower))
+review_corpus = tm_map(review_corpus, removeNumbers) #remove numbers
+review_corpus = tm_map(review_corpus, removePunctuation) #remove punctuation
+review_corpus = tm_map(review_corpus, removeWords, c(&quot;the&quot;, &quot;and&quot;, stopwords(&quot;english&quot;))) #remove common stopwords in English
+review_corpus =  tm_map(review_corpus, stripWhitespace) #remove spaces
+review_dtm &lt;- DocumentTermMatrix(review_corpus)
+review_dtm = removeSparseTerms(review_dtm, 0.99) #remove infrequent terms
+
+freq = data.frame(sort(colSums(as.matrix(review_dtm)), decreasing=TRUE))
+wordcloud(rownames(freq), freq[,1], max.words=50, colors=brewer.pal(1, &quot;Dark2&quot;)) #print a word cloud</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/data%20formatting%20for%20text%20mining-1.png" width="672" /></p>
+<pre class="r"><code>review_dtm_tfidf &lt;- DocumentTermMatrix(review_corpus, control = list(weighting = weightTfIdf)) #normalise using the Term Frequency Inverse Document Frequency (TFIDF) method
+review_dtm_tfidf = removeSparseTerms(review_dtm_tfidf, 0.95) #remove infrequent terms
+
+
+freq = data.frame(sort(colSums(as.matrix(review_dtm_tfidf)), decreasing=TRUE))
+wordcloud(rownames(freq), freq[,1], max.words=100, colors=brewer.pal(1, &quot;Dark2&quot;)) #print a word cloud with normalised terms</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/data%20formatting%20for%20text%20mining-2.png" width="672" /></p>
+<pre class="r"><code>#convert the tm output in a df to clean it from NAs
+matrix &lt;- tidy(review_dtm_tfidf)
+new_matrix &lt;- matrix %&gt;% pivot_wider(names_from = term, values_from = count)
+new_matrix[is.na(new_matrix)] = 0
+  
+#run a principal component analysis
+new_matrix_pr &lt;- prcomp(new_matrix[c(2:95)], center = FALSE, scale = TRUE)
+summary(new_matrix_pr)</code></pre>
+<pre><code>## Importance of components:
+##                            PC1     PC2     PC3     PC4     PC5     PC6     PC7
+## Standard deviation     2.92230 1.56353 1.39230 1.37744 1.30395 1.26628 1.23644
+## Proportion of Variance 0.09085 0.02601 0.02062 0.02018 0.01809 0.01706 0.01626
+## Cumulative Proportion  0.09085 0.11686 0.13748 0.15766 0.17575 0.19281 0.20907
+##                            PC8     PC9    PC10    PC11    PC12    PC13    PC14
+## Standard deviation     1.21656 1.16992 1.14488 1.12993 1.12747 1.11046 1.10063
+## Proportion of Variance 0.01574 0.01456 0.01394 0.01358 0.01352 0.01312 0.01289
+## Cumulative Proportion  0.22482 0.23938 0.25332 0.26691 0.28043 0.29355 0.30643
+##                           PC15    PC16   PC17    PC18    PC19    PC20    PC21
+## Standard deviation     1.09097 1.07662 1.0708 1.06255 1.05665 1.05247 1.04355
+## Proportion of Variance 0.01266 0.01233 0.0122 0.01201 0.01188 0.01178 0.01159
+## Cumulative Proportion  0.31910 0.33143 0.3436 0.35564 0.36751 0.37930 0.39088
+##                           PC22    PC23    PC24    PC25    PC26    PC27    PC28
+## Standard deviation     1.04160 1.03646 1.03300 1.02903 1.02263 1.01946 1.01556
+## Proportion of Variance 0.01154 0.01143 0.01135 0.01127 0.01113 0.01106 0.01097
+## Cumulative Proportion  0.40242 0.41385 0.42520 0.43647 0.44759 0.45865 0.46962
+##                           PC29    PC30    PC31    PC32    PC33    PC34    PC35
+## Standard deviation     1.01132 1.00978 1.00536 1.00464 1.00140 0.99910 0.99015
+## Proportion of Variance 0.01088 0.01085 0.01075 0.01074 0.01067 0.01062 0.01043
+## Cumulative Proportion  0.48050 0.49135 0.50210 0.51284 0.52351 0.53413 0.54456
+##                           PC36    PC37    PC38    PC39    PC40    PC41    PC42
+## Standard deviation     0.98972 0.98577 0.98358 0.97997 0.97804 0.97220 0.97171
+## Proportion of Variance 0.01042 0.01034 0.01029 0.01022 0.01018 0.01006 0.01004
+## Cumulative Proportion  0.55498 0.56532 0.57561 0.58582 0.59600 0.60606 0.61610
+##                           PC43    PC44    PC45   PC46    PC47    PC48    PC49
+## Standard deviation     0.96738 0.96657 0.96182 0.9599 0.95333 0.95170 0.94814
+## Proportion of Variance 0.00996 0.00994 0.00984 0.0098 0.00967 0.00964 0.00956
+## Cumulative Proportion  0.62606 0.63600 0.64584 0.6556 0.66531 0.67494 0.68451
+##                           PC50    PC51   PC52    PC53    PC54    PC55    PC56
+## Standard deviation     0.94649 0.94165 0.9402 0.93697 0.93179 0.92898 0.92674
+## Proportion of Variance 0.00953 0.00943 0.0094 0.00934 0.00924 0.00918 0.00914
+## Cumulative Proportion  0.69404 0.70347 0.7129 0.72221 0.73145 0.74063 0.74977
+##                           PC57    PC58    PC59    PC60    PC61    PC62    PC63
+## Standard deviation     0.92271 0.92021 0.91607 0.90892 0.90725 0.90576 0.90300
+## Proportion of Variance 0.00906 0.00901 0.00893 0.00879 0.00876 0.00873 0.00867
+## Cumulative Proportion  0.75882 0.76783 0.77676 0.78555 0.79431 0.80303 0.81171
+##                           PC64    PC65    PC66    PC67    PC68    PC69    PC70
+## Standard deviation     0.89772 0.89206 0.88979 0.88944 0.88661 0.87903 0.86769
+## Proportion of Variance 0.00857 0.00847 0.00842 0.00842 0.00836 0.00822 0.00801
+## Cumulative Proportion  0.82028 0.82875 0.83717 0.84559 0.85395 0.86217 0.87018
+##                           PC71    PC72   PC73    PC74    PC75    PC76    PC77
+## Standard deviation     0.86228 0.85922 0.8508 0.84579 0.84178 0.83023 0.82443
+## Proportion of Variance 0.00791 0.00785 0.0077 0.00761 0.00754 0.00733 0.00723
+## Cumulative Proportion  0.87809 0.88594 0.8936 0.90125 0.90879 0.91612 0.92335
+##                           PC78    PC79    PC80    PC81    PC82    PC83    PC84
+## Standard deviation     0.80432 0.78922 0.77861 0.75679 0.74127 0.73375 0.72298
+## Proportion of Variance 0.00688 0.00663 0.00645 0.00609 0.00585 0.00573 0.00556
+## Cumulative Proportion  0.93024 0.93686 0.94331 0.94940 0.95525 0.96098 0.96654
+##                           PC85    PC86    PC87    PC88    PC89    PC90   PC91
+## Standard deviation     0.68819 0.67039 0.66288 0.63988 0.60139 0.58414 0.5651
+## Proportion of Variance 0.00504 0.00478 0.00467 0.00436 0.00385 0.00363 0.0034
+## Cumulative Proportion  0.97158 0.97636 0.98103 0.98539 0.98924 0.99287 0.9963
+##                           PC92    PC93    PC94
+## Standard deviation     0.40158 0.39608 0.18211
+## Proportion of Variance 0.00172 0.00167 0.00035
+## Cumulative Proportion  0.99798 0.99965 1.00000</code></pre>
+<pre class="r"><code>#plot the principal components by explained variance and isolate the PC that explain less than one explanatory variable (eigenvalue less than 1)
+screeplot(new_matrix_pr, type = &quot;l&quot;, npcs = 50, main = &quot;Screeplot of first 50 PCs&quot;)
+abline(h = 1, col=&quot;red&quot;, lty=5)
+legend(&quot;topright&quot;, legend=c(&quot;Eigenvalue = 1&quot;),
+       col=c(&quot;red&quot;), lty=5, cex=0.6)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/data%20formatting%20for%20text%20mining-3.png" width="672" /></p>
+<pre class="r"><code>cumpro &lt;- cumsum(new_matrix_pr$sdev^2 / sum(new_matrix_pr$sdev^2))
+plot(cumpro[0:50], xlab = &quot;PC #&quot;, ylab = &quot;Amount of explained variance&quot;, main = &quot;Cumulative variance plot&quot;)
+abline(v = 30, col=&quot;blue&quot;, lty=5)
+abline(h = 0.88759, col=&quot;blue&quot;, lty=5)
+legend(&quot;topleft&quot;, legend=c(&quot;Cut-off @ PC30&quot;),
+       col=c(&quot;blue&quot;), lty=5, cex=0.6)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/data%20formatting%20for%20text%20mining-4.png" width="672" /></p>
+<pre class="r"><code>#convert the output of prcomp in a dataframe
+new_matrix_pr_r &lt;- new_matrix_pr$x
+new_matrix_pr_df &lt;- data.frame(new_matrix_pr_r)
+
+#select the first 30 PCs which all have an eigenvalue greater than 1
+new_matrix_pr_df_selection &lt;- new_matrix_pr_df[,c(1:30)]
+new_matrix_index &lt;- new_matrix$document
+
+#select the rows from the original lending club data default column for which we have principal components
+lending_club_raw_default &lt;- lending_club_full_raw$Default
+lending_club_raw_default_df &lt;- data.frame(lending_club_raw_default)
+lending_club_raw_default_df &lt;- data.frame(lending_club_raw_default_df[new_matrix_index,])
+
+#bind the principal components table and the filtered default column to conduct our analysis later on
+lending_club_raw_default_and_components &lt;- cbind(lending_club_raw_default_df,new_matrix_pr_df_selection)
+names(lending_club_raw_default_and_components)[1] &lt;- &quot;default&quot;</code></pre>
+</div>
+<div id="logistic-regression-using-principal-components" class="section level2">
+<h2>3.2. Logistic regression using principal components</h2>
+<pre class="r"><code>#partition our data for the text mining logistic regression
+smp_size_3 &lt;- floor(0.6 * nrow(lending_club_raw_default_and_components))
+
+#set a seed to make the sample reproductible
+set.seed(789)
+train_text &lt;- sample(seq_len(nrow(lending_club_raw_default_and_components)), size = smp_size_2)
+
+#assign the training and the testing datasets to new dfs
+train_for_text &lt;- lending_club_raw_default_and_components[train_ind, ]
+test_for_text &lt;- lending_club_raw_default_and_components[-train_ind, ]
+
+#run a logistic regression for all selected components
+logistic_reg &lt;- glm(default ~ ., data = train_for_text)
+summary(logistic_reg)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = default ~ ., data = train_for_text)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -0.4621  -0.1569  -0.1317  -0.1039   1.0063  
+## 
+## Coefficients:
+##               Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.026e-01  1.721e-02   5.960 2.66e-09 ***
+## PC1         -1.393e-02  5.756e-03  -2.421  0.01552 *  
+## PC2          2.201e-03  2.861e-03   0.769  0.44164    
+## PC3          1.073e-02  3.803e-03   2.822  0.00478 ** 
+## PC4          2.826e-03  3.376e-03   0.837  0.40259    
+## PC5         -2.558e-03  3.463e-03  -0.739  0.46020    
+## PC6          4.728e-03  3.757e-03   1.258  0.20834    
+## PC7          1.812e-03  3.706e-03   0.489  0.62479    
+## PC8         -1.473e-02  3.739e-03  -3.938 8.30e-05 ***
+## PC9          1.914e-03  3.906e-03   0.490  0.62418    
+## PC10        -9.698e-03  4.022e-03  -2.411  0.01594 *  
+## PC11         7.827e-03  3.992e-03   1.961  0.04998 *  
+## PC12        -2.342e-03  4.023e-03  -0.582  0.56049    
+## PC13        -3.773e-03  4.064e-03  -0.928  0.35325    
+## PC14        -9.946e-04  4.230e-03  -0.235  0.81413    
+## PC15         6.217e-03  4.065e-03   1.529  0.12620    
+## PC16        -5.392e-03  4.271e-03  -1.262  0.20686    
+## PC17        -8.711e-03  4.348e-03  -2.003  0.04517 *  
+## PC18        -5.285e-03  4.250e-03  -1.244  0.21372    
+## PC19        -5.447e-05  4.269e-03  -0.013  0.98982    
+## PC20         9.798e-03  4.353e-03   2.251  0.02443 *  
+## PC21        -1.133e-02  4.301e-03  -2.634  0.00846 ** 
+## PC22         3.684e-03  4.333e-03   0.850  0.39520    
+## PC23        -4.604e-03  4.375e-03  -1.052  0.29269    
+## PC24         4.417e-03  4.366e-03   1.012  0.31179    
+## PC25         4.990e-03  4.416e-03   1.130  0.25853    
+## PC26         2.384e-03  4.338e-03   0.550  0.58256    
+## PC27         3.954e-03  4.405e-03   0.898  0.36944    
+## PC28        -1.170e-02  4.486e-03  -2.608  0.00912 ** 
+## PC29         6.338e-03  4.490e-03   1.412  0.15814    
+## PC30         1.345e-03  4.568e-03   0.294  0.76844    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for gaussian family taken to be 0.1222591)
+## 
+##     Null deviance: 736.20  on 5973  degrees of freedom
+## Residual deviance: 726.59  on 5943  degrees of freedom
+##   (7 observations deleted due to missingness)
+## AIC: 4431.4
+## 
+## Number of Fisher Scoring iterations: 2</code></pre>
+<pre class="r"><code>#create a dataframe to generate a ROC curve
+logistic_reg_pred_all_data &lt;- data.frame(predict(logistic_reg, newdata = test_for_text, type = &quot;response&quot;))
+
+logistic_reg_pred_all_data_vs_obs &lt;- data.frame(cbind(logistic_reg_pred_all_data,test_for_text$default))
+names(logistic_reg_pred_all_data_vs_obs)[1] = &quot;prediction&quot;
+names(logistic_reg_pred_all_data_vs_obs)[2] = &quot;observation&quot;
+
+#plot the ROC curve
+PRROC_obj &lt;- roc.curve(scores.class0 = logistic_reg_pred_all_data_vs_obs$prediction, weights.class0=logistic_reg_pred_all_data_vs_obs$observation,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/text%20mining%20logistic%20regression-1.png" width="672" /></p>
+</div>
+<div id="data-formatting-for-global-logistic-regression-all-variables-text" class="section level2">
+<h2>3.3. Data formatting for global logistic regression (all variables + text)</h2>
+<pre class="r"><code>#format the data to make it fit the best logistic regression we came up with in workshop 3
+lending_club_full_raw_clean_dummied_cleared_recoded &lt;- lending_club_full_raw_clean
+
+#recode the categorical variables as we did for the workshop dataset
+lending_club_full_raw_clean_dummied_cleared_recoded$emp_length &lt;- recode(lending_club_full_raw_clean_dummied_cleared_recoded$emp_length, &#39;&lt; 1 year&#39; = &#39;&lt; 2 years&#39;, &#39;1 year&#39; = &#39;&lt; 2 years&#39;, &#39;2 years&#39; = &#39;2-5 years&#39;, &#39;3 years&#39; = &#39;2-5 years&#39;, &#39;4 years&#39; = &#39;2-5 years&#39;, &#39;5 years&#39; = &#39;2-5 years&#39;, &#39;6 years&#39; = &#39;&gt; 5 years&#39;,&#39;7 years&#39; = &#39;&gt; 5 years&#39;,&#39;8 years&#39; = &#39;&gt; 5 years&#39;,&#39;9 years&#39; = &#39;&gt; 5 years&#39;,&#39;10+ years&#39; = &#39;&gt; 5 years&#39;)
+lending_club_full_raw_clean_dummied_cleared_recoded$delinq_2yrs &lt;- recode(lending_club_full_raw_clean_dummied_cleared_recoded$delinq_2yrs, &#39;0&#39; = &#39;&lt; 2&#39;, &#39;1&#39; = &#39;&lt; 2&#39;, &#39;2&#39; = &#39;2-5&#39;, &#39;3&#39; = &#39;2-5&#39;, &#39;4&#39; = &#39;2-5&#39;, &#39;5&#39; = &#39;2-5&#39;, &#39;6&#39; = &#39;&gt; 5&#39;,&#39;7&#39; = &#39;&gt; 5&#39;,&#39;8&#39; = &#39;&gt; 5&#39;,&#39;9&#39; = &#39;&gt; 5&#39;)
+lending_club_full_raw_clean_dummied_cleared_recoded$verification_status &lt;- recode(lending_club_full_raw_clean_dummied_cleared_recoded$verification_status, &#39;Source Verified&#39; = &#39;Verified&#39;, &#39;Verified&#39; = &#39;Verified&#39;, &#39;Not Verified&#39; = &#39;Not Verified&#39;)
+
+#create the same dummies as in the workshop dataset
+lending_club_full_raw_clean_dummied_cleared_recoded &lt;- dummy_cols(lending_club_full_raw_clean_dummied_cleared_recoded, select_columns = c(&#39;term_months&#39;,&#39;grade&#39;,&#39;emp_length&#39;,&#39;home_ownership&#39;,&#39;verification_status&#39;))
+
+#delete the useless dummies
+drops &lt;- c(&quot;term_months_60&quot;,&quot;term (months)_NA&quot;,&quot;grade_G&quot;,&quot;grade_NA&quot;,&quot;emp_length_&gt; 5 years&quot;,&quot;emp_length_n/a&quot;,&quot;emp_length_NA&quot;,&quot;home_ownership_OTHER&quot;,&quot;home_ownership_NA&quot;,&quot;verification_status_Verified&quot;,&quot;verification_status_NA&quot;)
+lending_club_full_raw_clean_dummied_cleared_recoded &lt;- lending_club_full_raw_clean_dummied_cleared_recoded[ , !(names(lending_club_full_raw_clean_dummied_cleared_recoded) %in% drops)]
+lending_club_full_raw_clean_dummied_cleared_recoded &lt;- clean_names(lending_club_full_raw_clean_dummied_cleared_recoded)
+
+#add our interaction terms of low grades * home ownership
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_mort_E &lt;- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_mortgage * lending_club_full_raw_clean_dummied_cleared_recoded$grade_e
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_own_E &lt;- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_own * lending_club_full_raw_clean_dummied_cleared_recoded$grade_e
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_rent_E &lt;- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_rent * lending_club_full_raw_clean_dummied_cleared_recoded$grade_e
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_mort_F &lt;- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_mortgage * lending_club_full_raw_clean_dummied_cleared_recoded$grade_f
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_own_F &lt;- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_own * lending_club_full_raw_clean_dummied_cleared_recoded$grade_f
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_rent_F &lt;- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_rent * lending_club_full_raw_clean_dummied_cleared_recoded$grade_f
+
+#add our interaction term of loan term * loan amount
+lending_club_full_raw_clean_dummied_cleared_recoded$loan_amnt_x_term_36 &lt;- lending_club_full_raw_clean_dummied_cleared_recoded$loan_amnt * lending_club_full_raw_clean_dummied_cleared_recoded$term_months_36
+
+#keep the rows for which we have principal components (i.e. delete the rows for which there is no desc)
+lending_club_full_raw_clean_dummied_cleared_recoded &lt;- data.frame(lending_club_full_raw_clean_dummied_cleared_recoded[new_matrix_index,])
+lending_club_full_recoded_dummied_with_text &lt;- cbind(lending_club_full_raw_clean_dummied_cleared_recoded,new_matrix_pr_df_selection)</code></pre>
+</div>
+<div id="comparison-of-logistic-regression-with-and-without-the-principal-componentss" class="section level2">
+<h2>3.4. Comparison of logistic regression with and without the principal componentss</h2>
+<pre class="r"><code>#partition our data to analyse the added value of text mining
+smp_size_4 &lt;- floor(0.6 * nrow(lending_club_full_recoded_dummied_with_text))
+
+#set a seed to make the sample reproductible
+set.seed(1234)
+train_text_all_plus_text &lt;- sample(seq_len(nrow(lending_club_full_recoded_dummied_with_text)), size = smp_size_2)
+
+#assign the training and the testing datasets to new dfs
+train_for_all_plus_text &lt;- lending_club_full_recoded_dummied_with_text[train_ind, ]
+test_for_all_plus_text &lt;- lending_club_full_recoded_dummied_with_text[-train_ind, ]
+
+#create datasets without the text
+train_for_all_without_text &lt;- train_for_all_plus_text[,c(1:33)]
+test_for_all_without_text &lt;- test_for_all_plus_text[,c(1:33)]
+
+#train the logistic regression without the text
+logistic_reg_without_text &lt;- glm(default ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = train_for_all_without_text)
+summary(logistic_reg_without_text)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = default ~ loan_amnt + installment + dti + annual_inc + 
+##     term_months_36 + grade_a + grade_b + grade_c + grade_d + 
+##     grade_e + grade_f + emp_length_2_years + emp_length_2_5_years + 
+##     home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+##     verification_status_not_verified + home_ownsh_x_mort_E + 
+##     home_ownsh_x_own_E + home_ownsh_x_rent_E + home_ownsh_x_mort_F + 
+##     home_ownsh_x_own_F + loan_amnt_x_term_36, family = binomial, 
+##     data = train_for_all_without_text)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.1149  -0.6079  -0.4899  -0.3427   3.2752  
+## 
+## Coefficients:
+##                                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                      -6.764e-01  6.496e-01  -1.041 0.297752    
+## loan_amnt                        -1.597e-04  6.754e-05  -2.364 0.018079 *  
+## installment                       6.667e-03  2.722e-03   2.449 0.014311 *  
+## dti                              -2.926e-03  5.944e-03  -0.492 0.622545    
+## annual_inc                       -5.893e-06  1.263e-06  -4.666 3.08e-06 ***
+## term_months_36                   -6.316e-01  1.761e-01  -3.587 0.000335 ***
+## grade_a                          -7.013e-01  4.507e-01  -1.556 0.119690    
+## grade_b                          -6.792e-02  4.241e-01  -0.160 0.872751    
+## grade_c                           1.915e-01  4.056e-01   0.472 0.636823    
+## grade_d                           3.872e-01  3.885e-01   0.997 0.318928    
+## grade_e                           8.357e-01  1.376e+00   0.608 0.543480    
+## grade_f                           1.429e-01  4.553e-01   0.314 0.753722    
+## emp_length_2_years               -6.312e-02  1.033e-01  -0.611 0.541330    
+## emp_length_2_5_years             -1.734e-01  8.835e-02  -1.962 0.049735 *  
+## home_ownership_mortgage          -3.140e-01  5.022e-01  -0.625 0.531776    
+## home_ownership_own               -2.189e-01  5.181e-01  -0.422 0.672711    
+## home_ownership_rent              -2.765e-01  5.001e-01  -0.553 0.580307    
+## verification_status_not_verified  1.582e-01  8.366e-02   1.891 0.058562 .  
+## home_ownsh_x_mort_E              -3.167e-01  1.336e+00  -0.237 0.812649    
+## home_ownsh_x_own_E               -1.379e+00  1.438e+00  -0.959 0.337807    
+## home_ownsh_x_rent_E              -4.442e-01  1.335e+00  -0.333 0.739367    
+## home_ownsh_x_mort_F               1.019e-01  4.140e-01   0.246 0.805515    
+## home_ownsh_x_own_F                8.408e-01  9.832e-01   0.855 0.392498    
+## loan_amnt_x_term_36              -5.687e-05  2.653e-05  -2.143 0.032078 *  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 4923.6  on 5973  degrees of freedom
+## Residual deviance: 4650.2  on 5950  degrees of freedom
+##   (7 observations deleted due to missingness)
+## AIC: 4698.2
+## 
+## Number of Fisher Scoring iterations: 5</code></pre>
+<pre class="r"><code>#predict the dataset without text with the logistic regression without text
+logistic_reg_pred_without_text &lt;- data.frame(predict(logistic_reg_without_text, newdata = test_for_all_without_text, type = &quot;response&quot;))
+names(logistic_reg_pred_without_text)[1] = &quot;prediction&quot;
+
+#create the ROC curve for the logistic regression without text
+PRROC_obj &lt;- roc.curve(scores.class0 = logistic_reg_pred_without_text$prediction, weights.class0=test_for_all_without_text$default,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/text%20mining%20comparison-1.png" width="672" /></p>
+<pre class="r"><code>#run the same logistic regression with the same variables as before plus the principal components
+logistic_reg_with_text &lt;- glm(default ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36 +
+                        PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + PC12 + PC13 + PC14 + PC15 + PC16 + PC17 + PC18 + PC19 + PC20 + PC21 + PC22 + PC23 + PC24 + PC25 + PC26 + PC27 + PC28 + PC29 + PC30,
+                        family = binomial,
+                        data = train_for_all_plus_text)
+summary(logistic_reg_with_text)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = default ~ loan_amnt + installment + dti + annual_inc + 
+##     term_months_36 + grade_a + grade_b + grade_c + grade_d + 
+##     grade_e + grade_f + emp_length_2_years + emp_length_2_5_years + 
+##     home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+##     verification_status_not_verified + home_ownsh_x_mort_E + 
+##     home_ownsh_x_own_E + home_ownsh_x_rent_E + home_ownsh_x_mort_F + 
+##     home_ownsh_x_own_F + loan_amnt_x_term_36 + PC1 + PC2 + PC3 + 
+##     PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + PC12 + 
+##     PC13 + PC14 + PC15 + PC16 + PC17 + PC18 + PC19 + PC20 + PC21 + 
+##     PC22 + PC23 + PC24 + PC25 + PC26 + PC27 + PC28 + PC29 + PC30, 
+##     family = binomial, data = train_for_all_plus_text)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.2648  -0.6037  -0.4682  -0.3247   3.1962  
+## 
+## Coefficients:
+##                                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                      -8.499e-01  6.680e-01  -1.272 0.203298    
+## loan_amnt                        -1.476e-04  6.795e-05  -2.172 0.029872 *  
+## installment                       6.164e-03  2.741e-03   2.249 0.024507 *  
+## dti                              -2.275e-03  6.105e-03  -0.373 0.709372    
+## annual_inc                       -5.707e-06  1.262e-06  -4.523 6.08e-06 ***
+## term_months_36                   -6.593e-01  1.783e-01  -3.698 0.000217 ***
+## grade_a                          -7.562e-01  4.560e-01  -1.658 0.097229 .  
+## grade_b                          -1.038e-01  4.292e-01  -0.242 0.808917    
+## grade_c                           1.656e-01  4.104e-01   0.404 0.686563    
+## grade_d                           3.854e-01  3.931e-01   0.980 0.326885    
+## grade_e                           7.406e-01  1.390e+00   0.533 0.594283    
+## grade_f                           1.393e-01  4.613e-01   0.302 0.762635    
+## emp_length_2_years               -3.237e-02  1.055e-01  -0.307 0.758990    
+## emp_length_2_5_years             -1.520e-01  8.991e-02  -1.691 0.090889 .  
+## home_ownership_mortgage          -3.538e-01  5.106e-01  -0.693 0.488339    
+## home_ownership_own               -2.654e-01  5.265e-01  -0.504 0.614270    
+## home_ownership_rent              -2.986e-01  5.083e-01  -0.587 0.556977    
+## verification_status_not_verified  1.615e-01  8.467e-02   1.907 0.056520 .  
+## home_ownsh_x_mort_E              -2.397e-01  1.351e+00  -0.177 0.859203    
+## home_ownsh_x_own_E               -1.381e+00  1.455e+00  -0.949 0.342859    
+## home_ownsh_x_rent_E              -3.562e-01  1.350e+00  -0.264 0.791883    
+## home_ownsh_x_mort_F               1.138e-01  4.186e-01   0.272 0.785663    
+## home_ownsh_x_own_F                9.487e-01  9.884e-01   0.960 0.337123    
+## loan_amnt_x_term_36              -5.031e-05  2.681e-05  -1.876 0.060627 .  
+## PC1                              -5.340e-02  4.944e-02  -1.080 0.280109    
+## PC2                               2.895e-03  2.392e-02   0.121 0.903686    
+## PC3                               7.682e-02  3.164e-02   2.428 0.015188 *  
+## PC4                               1.695e-02  2.795e-02   0.607 0.544116    
+## PC5                               6.227e-03  2.905e-02   0.214 0.830268    
+## PC6                               4.748e-03  3.118e-02   0.152 0.878979    
+## PC7                              -8.379e-03  3.105e-02  -0.270 0.787272    
+## PC8                              -8.345e-02  3.047e-02  -2.739 0.006163 ** 
+## PC9                               3.406e-02  3.239e-02   1.051 0.293070    
+## PC10                             -1.229e-01  3.307e-02  -3.715 0.000203 ***
+## PC11                              6.741e-02  3.309e-02   2.037 0.041660 *  
+## PC12                              7.505e-04  3.285e-02   0.023 0.981772    
+## PC13                             -2.892e-02  3.286e-02  -0.880 0.378861    
+## PC14                              1.763e-02  3.484e-02   0.506 0.612791    
+## PC15                              3.644e-02  3.309e-02   1.101 0.270806    
+## PC16                             -4.392e-02  3.724e-02  -1.180 0.238156    
+## PC17                             -7.012e-02  3.669e-02  -1.911 0.055983 .  
+## PC18                             -5.906e-02  3.472e-02  -1.701 0.088908 .  
+## PC19                             -8.806e-03  3.651e-02  -0.241 0.809431    
+## PC20                              7.762e-02  3.623e-02   2.142 0.032163 *  
+## PC21                             -1.116e-01  3.633e-02  -3.072 0.002126 ** 
+## PC22                              3.323e-02  3.646e-02   0.911 0.362127    
+## PC23                             -4.903e-02  3.655e-02  -1.341 0.179828    
+## PC24                              2.426e-02  3.660e-02   0.663 0.507358    
+## PC25                              6.100e-02  3.747e-02   1.628 0.103512    
+## PC26                              1.494e-02  3.516e-02   0.425 0.670868    
+## PC27                              3.922e-02  3.665e-02   1.070 0.284534    
+## PC28                             -8.885e-02  3.616e-02  -2.457 0.014001 *  
+## PC29                              6.310e-02  3.842e-02   1.642 0.100537    
+## PC30                              8.264e-03  3.831e-02   0.216 0.829216    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 4923.6  on 5973  degrees of freedom
+## Residual deviance: 4577.4  on 5920  degrees of freedom
+##   (7 observations deleted due to missingness)
+## AIC: 4685.4
+## 
+## Number of Fisher Scoring iterations: 5</code></pre>
+<pre class="r"><code>#predict the dataset with text with the logistic regression that includes the principal components
+logistic_reg_pred_with_text &lt;- data.frame(predict(logistic_reg_with_text, newdata = test_for_all_plus_text, type = &quot;response&quot;))
+names(logistic_reg_pred_with_text)[1] = &quot;prediction&quot;
+
+#create the ROC curve for the logistic regression with the principal components
+PRROC_obj &lt;- roc.curve(scores.class0 = logistic_reg_pred_with_text$prediction, weights.class0=test_for_all_plus_text$default,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/decision_trees_files/figure-html/text%20mining%20comparison-2.png" width="672" /></p>
+</div>
+</div>
+<div id="sources" class="section level1">
+<h1>4. Sources</h1>
+<ul>
+<li><a href="https://uc-r.github.io/regression_trees">UC-R.io: Regression trees</a><br />
+</li>
+<li><a href="https://www.statology.org/classification-and-regression-trees-in-r/">Statology.org: Classification and regression trees in R</a><br />
+</li>
+<li><a href="https://hackernoon.com/random-forest-regression-in-r-code-and-interpretation">Hackernoon.com: Random Forest Regression in R code and interpretation</a><br />
+</li>
+<li><a href="https://www.r-bloggers.com/2018/01/how-to-implement-random-forests-in-r/">R-bloggers.com</a><br />
+</li>
+<li><a href="https://www.red-gate.com/simple-talk/databases/sql-server/bi-sql-server/text-mining-and-sentiment-analysis-with-r/">Red-gate.com: Text mining and sentiment analysis in R</a><br />
+</li>
+<li><a href="https://www.geeksforgeeks.org/k-nn-classifier-in-r-programming/">Geeksforgeeks.org: K-nn classifier in R programming</a><br />
+</li>
+<li><a href="https://analyticsindiamag.com/a-guide-to-term-document-matrix-with-its-implementation-in-r-and-python/#:~:text=Term%20document%20matrix%20is%20also,the%20matrix%20represent%20the%20word.">Analyticsindiamag.com: A guide to term document matrix zith its implementation in R and Python</a><br />
+</li>
+<li><a href="https://rstudio-pubs-static.s3.amazonaws.com/132792_864e3813b0ec47cb95c7e1e2e2ad83e7.html">Cornell.edu: Basic Text Mining with R</a><br />
+</li>
+<li><a href="https://towardsdatascience.com/principal-component-analysis-pca-101-using-r-361f4c53a9ff">Towardsdatascience.com: Principal Component Analysis - PCA 101 Using R</a><br />
+</li>
+</ul>
+<p>Note that the <code>echo = FALSE</code> parameter was added to the code chunk to prevent printing of the R code that generated the plot.</p>
+</div>

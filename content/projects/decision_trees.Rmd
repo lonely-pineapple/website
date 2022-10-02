@@ -1,0 +1,565 @@
+---
+title: "Decision tree, KNN and text-mining"
+author: "Hadrien Pistre"
+date: 2022-04-26T21:13:14-05:00
+categories: ["R Projects"]
+tags: ["Decision tree", "Regression tree", "Random tree", "KNN", "Text mining"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+library(rsample)     # data splitting 
+library(dplyr)       # data wrangling
+library(rpart)       # performing regression trees
+library(rpart.plot)  # plotting regression trees
+library(ipred)       # bagging
+library(caret)       # bagging
+library(randomForest)
+library(tidyverse)  # Load ggplot2, dplyr, and all the other tidyverse packages
+library(fastDummies)
+library(readxl)
+library(janitor)
+library(e1071)
+library(caTools)
+library(class)
+library(tokenizers)
+library(tidytext)
+library(PRROC)
+
+# Load
+library("tm")
+library("SnowballC")
+library("wordcloud")
+library("RColorBrewer")
+library("syuzhet")
+library("ggplot2")
+```
+
+```{r loading lending club full raw, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#load the data from lending club
+
+lending_club_full_raw <- read_csv((here::here("C:/Users/hadri/Desktop/R Folder/website/content/data/lending_club_full_raw.csv")))
+lending_club_full_raw_clean <- lending_club_full_raw[,c(2:21)]
+```
+
+# 0. Retrieve linear regression from workshop 2
+
+```{r data formatting for linear regression, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+
+#we format the data to run the linear regression model we determined in workshop 1
+
+#reduce the number of categories for several variables
+lending_club_full_raw_clean$emp_length <- recode(lending_club_full_raw_clean$emp_length, '< 1 year' = '< 2 years', '1 year' = '< 2 years', '2 years' = '2-5 years', '3 years' = '2-5 years', '4 years' = '2-5 years', '5 years' = '2-5 years', '6 years' = '> 5 years','7 years' = '> 5 years','8 years' = '> 5 years','9 years' = '> 5 years','10+ years' = '> 5 years')
+
+lending_club_full_raw_clean$delinq_2yrs <- recode(lending_club_full_raw_clean$delinq_2yrs, '0' = '< 2', '1' = '< 2', '2' = '2-5', '3' = '2-5', '4' = '2-5', '5' = '2-5', '6' = '> 5','7' = '> 5','8' = '> 5','9' = '> 5')
+
+lending_club_full_raw_clean$verification_status <- recode(lending_club_full_raw_clean$verification_status, 'Source Verified' = 'Verified', 'Verified' = 'Verified', 'Not Verified' = 'Not Verified')
+
+lending_club_full_raw_clean <- clean_names(lending_club_full_raw_clean)
+drops <- c("emp_title","issue_d","zip_code","addr_state","loan_status","desc","title")
+lending_club_full_raw_clean <- lending_club_full_raw_clean[ , !(names(lending_club_full_raw_clean) %in% drops)]
+
+lending_club_full_raw_clean$interest_rate = as.numeric(gsub("[\\%,]", "", lending_club_full_raw_clean$interest_rate))
+lending_club_full_raw_clean$installment = as.numeric(gsub("[\\$,]", "", lending_club_full_raw_clean$installment))
+
+lending_club_full_raw_clean_dummied <- dummy_cols(lending_club_full_raw_clean, select_columns = c('term_months','grade','emp_length','home_ownership','verification_status'))
+
+drops <- c("term_months_60","grade_G","emp_length_>5 years","emp_length_> 5 years","emp_length_n/a","home_ownership_OTHER","verification_status_Not Verified","verification_status_NA")
+lending_club_full_raw_clean_dummied_cleared <- lending_club_full_raw_clean_dummied[ , !(names(lending_club_full_raw_clean_dummied) %in% drops)]
+lending_club_full_raw_clean_dummied_cleared <- clean_names(lending_club_full_raw_clean_dummied_cleared)
+
+#create the interaction terms we used in our linear regression
+
+lending_club_full_raw_clean_dummied_cleared$annual_inc_2 <- lending_club_full_raw_clean_dummied_cleared$annual_inc * lending_club_full_raw_clean_dummied_cleared$annual_inc
+lending_club_full_raw_clean_dummied_cleared$annual_inc_3 <- lending_club_full_raw_clean_dummied_cleared$annual_inc_2 * lending_club_full_raw_clean_dummied_cleared$annual_inc
+
+lending_club_full_raw_clean_dummied_cleared$dti_2 <- lending_club_full_raw_clean_dummied_cleared$dti * lending_club_full_raw_clean_dummied_cleared$dti
+lending_club_full_raw_clean_dummied_cleared$dti_3 <- lending_club_full_raw_clean_dummied_cleared$dti_2 * lending_club_full_raw_clean_dummied_cleared$dti
+
+lending_club_full_raw_clean_dummied_cleared$grade_e_x_income <- lending_club_full_raw_clean_dummied_cleared$grade_e * lending_club_full_raw_clean_dummied_cleared$annual_inc
+lending_club_full_raw_clean_dummied_cleared$grade_f_x_income <- lending_club_full_raw_clean_dummied_cleared$grade_f * lending_club_full_raw_clean_dummied_cleared$annual_inc
+
+lending_club_full_raw_clean_dummied_cleared$dti_x_income <- lending_club_full_raw_clean_dummied_cleared$dti * lending_club_full_raw_clean_dummied_cleared$annual_inc
+
+lending_club_full_raw_clean_dummied_cleared$emp_length_2_years_x_income <- lending_club_full_raw_clean_dummied_cleared$emp_length_2_years * lending_club_full_raw_clean_dummied_cleared$annual_inc
+lending_club_full_raw_clean_dummied_cleared$emp_length_2_5_years_x_income <- lending_club_full_raw_clean_dummied_cleared$emp_length_2_5_years * lending_club_full_raw_clean_dummied_cleared$annual_inc
+
+```
+
+```{r linear regression, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#partition our data for the linear regression
+smp_size <- floor(0.6 * nrow(lending_club_full_raw_clean_dummied_cleared))
+
+#set a seed to make the sample reproductible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(lending_club_full_raw_clean_dummied_cleared)), size = smp_size)
+
+#assign the training and the testing datasets to new dfs
+train_lending_club_full_raw_clean_dummied_cleared <- lending_club_full_raw_clean_dummied_cleared[train_ind, ]
+test_lending_club_full_raw_clean_dummied_cleared <- lending_club_full_raw_clean_dummied_cleared[-train_ind, ]
+
+#define our linear regression
+lin_reg <- lm(interest_rate ~
+                loan_amnt + 
+                term_months_36 + 
+                dti + 
+                annual_inc + 
+                grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                emp_length_2_years + emp_length_2_5_years +
+                home_ownership_mortgage + home_ownership_own + home_ownership_rent +
+                verification_status_verified +
+                annual_inc_2 + annual_inc_3 +
+                dti_2 + dti_3 +
+                grade_e_x_income + grade_f_x_income +
+                dti_x_income + 
+                emp_length_2_years_x_income + emp_length_2_5_years_x_income,
+              data = train_lending_club_full_raw_clean_dummied_cleared)
+summary(lin_reg)
+```
+
+# 1. Decision Trees
+
+## 1.1. Regression tree
+
+```{r regression tree, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#partition our data for the regression tree
+lending_club_cleaned_for_tree <- lending_club_full_raw_clean_dummied_cleared[c(1:12)]
+
+smp_size_2 <- floor(0.6 * nrow(lending_club_cleaned_for_tree))
+
+#set a seed to make the sample reproductible
+set.seed(456)
+train_ind <- sample(seq_len(nrow(lending_club_cleaned_for_tree)), size = smp_size_2)
+
+#assign the training and the testing datasets to new dfs
+train_lending_club_cleaned_for_tree <- lending_club_cleaned_for_tree[train_ind, ]
+test_lending_club_cleaned_for_tree <- lending_club_cleaned_for_tree[-train_ind, ]
+
+#create a function to set different tree depths
+regression_tree_function <- function(x){
+
+model_1_tree <- rpart(interest_rate ~ loan_amnt + term_months + installment + dti + delinq_2yrs + annual_inc + grade + emp_length + home_ownership + verification_status + purpose, data=train_lending_club_cleaned_for_tree, control=rpart.control(cp=.0001, maxdepth = x))
+
+#view results of the trees
+printcp(model_1_tree)
+print(model_1_tree)
+
+best <- model_1_tree$cptable[which.min(model_1_tree$cptable[,"xerror"]),"CP"]
+
+#find the best cp value for the pruned tree
+pruned_model_1_tree_tree <- prune(model_1_tree, cp=best)
+
+#plot the pruned tree
+prp(pruned_model_1_tree_tree,
+    faclen=0, #use full names for factor labels
+    extra=1, #display no. of observations for terminal nodes
+    roundint=F, #don't round integers
+    digits=5) #display 5 decimals
+
+model_1_tree_pred <- predict(model_1_tree,test_lending_club_cleaned_for_tree)
+model_1_tree_pred_df <- data.frame(model_1_tree_pred)
+
+sse <- data.frame(pred = predict(model_1_tree,test_lending_club_cleaned_for_tree)) %>%
+   mutate(obs = test_lending_club_cleaned_for_tree$interest_rate,
+          sq_err = (obs - pred)^2) %>%
+   summarize(sse = sum(sq_err))
+print(sse)
+}#end of regression_tree_function
+
+#plot trees and their sse for different depths levels
+sse_tree_1 <- regression_tree_function(3)
+sse_tree_2 <- regression_tree_function(4)
+sse_tree_3 <- regression_tree_function(5)
+sse_tree_4 <- regression_tree_function(30)
+
+#store the outputs in a dataframe
+sse_by_depth_regression_tree <- data.frame(sse = c(sse_tree_1,sse_tree_2,sse_tree_3,sse_tree_4))
+
+#pivot longer the outputs
+sse_by_depth_regression_tree <- sse_by_depth_regression_tree %>% 
+  pivot_longer(
+    cols = c(1:4),
+    names_to = "sse", 
+    values_to = "values"
+  )
+
+#replace the sse.see values by the number of features
+sse_by_depth_regression_tree$depth_no <- c(3,4,5,30)
+sse_by_depth_regression_tree[,c(2:3)]
+
+ggplot(sse_by_depth_regression_tree, aes(x=depth_no,y=values,group = 1))+
+  geom_line(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+      title = paste("SSE following the number of levels included in the regression tree"),
+      x     = "Number of levels",
+      y     = "SSE")
+```
+
+## 1.2. Random tree
+
+```{r random tree, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+
+#create a function to try different number of features used in our random tree
+random_tree_function <- function(x){
+
+#remove NAs because they are not supported for randon trees
+train_lending_club_cleaned_for_random_tree <- na.omit(train_lending_club_cleaned_for_tree)
+test_lending_club_cleaned_for_random_tree <- na.omit(test_lending_club_cleaned_for_tree)
+
+model_2_random_tree <- randomForest(interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree, ntree = 50, mtry = x, importance = TRUE)
+print(model_2_random_tree)
+
+#compute the sse
+sse <- data.frame(pred = predict(model_2_random_tree,test_lending_club_cleaned_for_random_tree)) %>%
+   mutate(obs = test_lending_club_cleaned_for_tree$interest_rate,
+          sq_err = (obs - pred)^2) %>%
+   summarize(sse = sum(sq_err))
+print(sse)
+}#end of random_tree_function
+
+#store the outputs of the function
+sse_2 <- random_tree_function(2)
+sse_3 <- random_tree_function(3)
+sse_4 <- random_tree_function(4)
+sse_5 <- random_tree_function(5)
+sse_6 <- random_tree_function(6)
+sse_7 <- random_tree_function(7)
+sse_8 <- random_tree_function(8)
+sse_9 <- random_tree_function(9)
+sse_10 <- random_tree_function(10)
+sse_11 <- random_tree_function(11)
+sse_12 <- random_tree_function(12)
+
+#store the outputs in a dataframe
+sse_by_features_included_random_tree <- data.frame(sse = c(sse_2,sse_3,sse_4,sse_5,sse_6,sse_7,sse_8,sse_9,sse_10,sse_11,sse_12))
+
+#pivot longer the outputs
+sse_by_features_included_random_tree <- sse_by_features_included_random_tree %>% 
+  pivot_longer(
+    cols = c(1:11),
+    names_to = "sse", 
+    values_to = "values"
+  )
+
+#replace the sse.see values by the number of features
+sse_by_features_included_random_tree$features_no <- c(1,2,3,4,5,6,7,8,9,10,11)
+sse_by_features_included_random_tree[,c(2:3)]
+
+#plot the number of features in the random tree vs the sse
+ggplot(sse_by_features_included_random_tree, aes(x=features_no,y=values,group = 1))+
+  geom_line(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+      title = paste("SSE following the number of features included in the random tree"),
+      x     = "Number of features",
+      y     = "SSE")
+```
+
+# 2. KNN - k-nearest neighbors
+
+```{r knn, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+
+#partition our data for knn, keeping only numerical and dummied data
+train_for_knn <- train_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
+test_for_knn <- test_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
+
+#center the partitioned data
+train_for_knn_scaled <- scale(train_for_knn)
+test_for_knn_scaled <- scale(test_for_knn)
+
+train_for_knn_scaled_df <- data.frame(train_for_knn_scaled)
+test_for_knn_scaled_df <- data.frame(test_for_knn_scaled)
+
+#create a function to try different number of observations taken into account
+knn_function <- function(x){
+knn_classification <- knn(train = train_for_knn_scaled_df,
+                      test = test_for_knn_scaled_df,
+                      cl = train_for_knn_scaled_df$interest_rate,
+                      k = x)
+
+#create a df of knn predictions vs observations
+knn_classification_df <- data.frame(knn_classification)
+knn_vs_test <- cbind(knn_classification_df,test_for_knn_scaled_df$interest_rate)
+knn_vs_test_df <- data.frame(knn_vs_test)
+names(knn_vs_test_df)[1] <- "knn_pred"
+names(knn_vs_test_df)[2] <- "observation"
+
+#make columns as numeric to allow for sse computation
+knn_vs_test_df$knn_pred <- as.character(knn_vs_test_df$knn_pred)
+knn_vs_test_df$knn_pred <- as.numeric(knn_vs_test_df$knn_pred)
+
+#compute the sse
+sse_knn <- knn_vs_test_df %>%
+mutate(sq_err = (observation - knn_pred)^2) %>%
+summarize(sse = sum(sq_err))
+print(sse_knn)
+}#end of knn_function
+
+#store the outputs of the function
+sse_knn_1 <- knn_function(1)
+sse_knn_2 <- knn_function(2)
+sse_knn_3 <- knn_function(3)
+sse_knn_4 <- knn_function(4)
+sse_knn_5 <- knn_function(5)
+sse_knn_6 <- knn_function(6)
+sse_knn_7 <- knn_function(7)
+sse_knn_8 <- knn_function(8)
+sse_knn_9 <- knn_function(9)
+sse_knn_10 <- knn_function(10)
+sse_knn_11 <- knn_function(11)
+sse_knn_12 <- knn_function(12)
+sse_knn_13 <- knn_function(13)
+sse_knn_14 <- knn_function(14)
+sse_knn_15 <- knn_function(15)
+
+#store the outputs in a dataframe
+sse_by_observations_included_knn <- data.frame(sse = c(sse_knn_1,sse_knn_1,sse_knn_2,sse_knn_3,sse_knn_4,sse_knn_5,sse_knn_6,sse_knn_7,sse_knn_8,sse_knn_9,sse_knn_10,sse_knn_11,sse_knn_12,sse_knn_13,sse_knn_14,sse_knn_15))
+sse_by_observations_included_knn
+
+#pivot longer the outputs
+sse_by_observations_included_knn <- sse_by_observations_included_knn %>% 
+  pivot_longer(
+    cols = c(1:16),
+    names_to = "sse", 
+    values_to = "values"
+  )
+
+#replace the sse values by the number of features
+sse_by_observations_included_knn$observations_no <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
+sse_by_observations_included_knn[,c(2:3)]
+
+#plot the number of observations in the knn analysis vs the sse
+ggplot(sse_by_observations_included_knn, aes(x=observations_no,y=values,group = 1))+
+  geom_line(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+      title = paste("SSE following the number of observations included in the knn analysis"),
+      x     = "Number of observations",
+      y     = "SSE")
+```
+
+# 3. Text mining
+
+## 3.1. Data formatting, tokenization and principal components determination
+
+```{r data formatting for text mining, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#load the description data in a corpus to format it with the tm package
+review_corpus = Corpus(VectorSource(lending_club_full_raw$desc))
+review_corpus = tm_map(review_corpus, content_transformer(tolower))
+review_corpus = tm_map(review_corpus, removeNumbers) #remove numbers
+review_corpus = tm_map(review_corpus, removePunctuation) #remove punctuation
+review_corpus = tm_map(review_corpus, removeWords, c("the", "and", stopwords("english"))) #remove common stopwords in English
+review_corpus =  tm_map(review_corpus, stripWhitespace) #remove spaces
+review_dtm <- DocumentTermMatrix(review_corpus)
+review_dtm = removeSparseTerms(review_dtm, 0.99) #remove infrequent terms
+
+freq = data.frame(sort(colSums(as.matrix(review_dtm)), decreasing=TRUE))
+wordcloud(rownames(freq), freq[,1], max.words=50, colors=brewer.pal(1, "Dark2")) #print a word cloud
+
+review_dtm_tfidf <- DocumentTermMatrix(review_corpus, control = list(weighting = weightTfIdf)) #normalise using the Term Frequency Inverse Document Frequency (TFIDF) method
+review_dtm_tfidf = removeSparseTerms(review_dtm_tfidf, 0.95) #remove infrequent terms
+
+
+freq = data.frame(sort(colSums(as.matrix(review_dtm_tfidf)), decreasing=TRUE))
+wordcloud(rownames(freq), freq[,1], max.words=100, colors=brewer.pal(1, "Dark2")) #print a word cloud with normalised terms
+
+#convert the tm output in a df to clean it from NAs
+matrix <- tidy(review_dtm_tfidf)
+new_matrix <- matrix %>% pivot_wider(names_from = term, values_from = count)
+new_matrix[is.na(new_matrix)] = 0
+  
+#run a principal component analysis
+new_matrix_pr <- prcomp(new_matrix[c(2:95)], center = FALSE, scale = TRUE)
+summary(new_matrix_pr)
+
+#plot the principal components by explained variance and isolate the PC that explain less than one explanatory variable (eigenvalue less than 1)
+screeplot(new_matrix_pr, type = "l", npcs = 50, main = "Screeplot of first 50 PCs")
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+cumpro <- cumsum(new_matrix_pr$sdev^2 / sum(new_matrix_pr$sdev^2))
+plot(cumpro[0:50], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+abline(v = 30, col="blue", lty=5)
+abline(h = 0.88759, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC30"),
+       col=c("blue"), lty=5, cex=0.6)
+
+#convert the output of prcomp in a dataframe
+new_matrix_pr_r <- new_matrix_pr$x
+new_matrix_pr_df <- data.frame(new_matrix_pr_r)
+
+#select the first 30 PCs which all have an eigenvalue greater than 1
+new_matrix_pr_df_selection <- new_matrix_pr_df[,c(1:30)]
+new_matrix_index <- new_matrix$document
+
+#select the rows from the original lending club data default column for which we have principal components
+lending_club_raw_default <- lending_club_full_raw$Default
+lending_club_raw_default_df <- data.frame(lending_club_raw_default)
+lending_club_raw_default_df <- data.frame(lending_club_raw_default_df[new_matrix_index,])
+
+#bind the principal components table and the filtered default column to conduct our analysis later on
+lending_club_raw_default_and_components <- cbind(lending_club_raw_default_df,new_matrix_pr_df_selection)
+names(lending_club_raw_default_and_components)[1] <- "default"
+```
+
+## 3.2. Logistic regression using principal components
+
+```{r text mining logistic regression, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#partition our data for the text mining logistic regression
+smp_size_3 <- floor(0.6 * nrow(lending_club_raw_default_and_components))
+
+#set a seed to make the sample reproductible
+set.seed(789)
+train_text <- sample(seq_len(nrow(lending_club_raw_default_and_components)), size = smp_size_2)
+
+#assign the training and the testing datasets to new dfs
+train_for_text <- lending_club_raw_default_and_components[train_ind, ]
+test_for_text <- lending_club_raw_default_and_components[-train_ind, ]
+
+#run a logistic regression for all selected components
+logistic_reg <- glm(default ~ ., data = train_for_text)
+summary(logistic_reg)
+
+#create a dataframe to generate a ROC curve
+logistic_reg_pred_all_data <- data.frame(predict(logistic_reg, newdata = test_for_text, type = "response"))
+
+logistic_reg_pred_all_data_vs_obs <- data.frame(cbind(logistic_reg_pred_all_data,test_for_text$default))
+names(logistic_reg_pred_all_data_vs_obs)[1] = "prediction"
+names(logistic_reg_pred_all_data_vs_obs)[2] = "observation"
+
+#plot the ROC curve
+PRROC_obj <- roc.curve(scores.class0 = logistic_reg_pred_all_data_vs_obs$prediction, weights.class0=logistic_reg_pred_all_data_vs_obs$observation,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+## 3.3. Data formatting for global logistic regression (all variables + text)
+
+```{r format data to text mining comparison, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+
+#format the data to make it fit the best logistic regression we came up with in workshop 3
+lending_club_full_raw_clean_dummied_cleared_recoded <- lending_club_full_raw_clean
+
+#recode the categorical variables as we did for the workshop dataset
+lending_club_full_raw_clean_dummied_cleared_recoded$emp_length <- recode(lending_club_full_raw_clean_dummied_cleared_recoded$emp_length, '< 1 year' = '< 2 years', '1 year' = '< 2 years', '2 years' = '2-5 years', '3 years' = '2-5 years', '4 years' = '2-5 years', '5 years' = '2-5 years', '6 years' = '> 5 years','7 years' = '> 5 years','8 years' = '> 5 years','9 years' = '> 5 years','10+ years' = '> 5 years')
+lending_club_full_raw_clean_dummied_cleared_recoded$delinq_2yrs <- recode(lending_club_full_raw_clean_dummied_cleared_recoded$delinq_2yrs, '0' = '< 2', '1' = '< 2', '2' = '2-5', '3' = '2-5', '4' = '2-5', '5' = '2-5', '6' = '> 5','7' = '> 5','8' = '> 5','9' = '> 5')
+lending_club_full_raw_clean_dummied_cleared_recoded$verification_status <- recode(lending_club_full_raw_clean_dummied_cleared_recoded$verification_status, 'Source Verified' = 'Verified', 'Verified' = 'Verified', 'Not Verified' = 'Not Verified')
+
+#create the same dummies as in the workshop dataset
+lending_club_full_raw_clean_dummied_cleared_recoded <- dummy_cols(lending_club_full_raw_clean_dummied_cleared_recoded, select_columns = c('term_months','grade','emp_length','home_ownership','verification_status'))
+
+#delete the useless dummies
+drops <- c("term_months_60","term (months)_NA","grade_G","grade_NA","emp_length_> 5 years","emp_length_n/a","emp_length_NA","home_ownership_OTHER","home_ownership_NA","verification_status_Verified","verification_status_NA")
+lending_club_full_raw_clean_dummied_cleared_recoded <- lending_club_full_raw_clean_dummied_cleared_recoded[ , !(names(lending_club_full_raw_clean_dummied_cleared_recoded) %in% drops)]
+lending_club_full_raw_clean_dummied_cleared_recoded <- clean_names(lending_club_full_raw_clean_dummied_cleared_recoded)
+
+#add our interaction terms of low grades * home ownership
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_mort_E <- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_mortgage * lending_club_full_raw_clean_dummied_cleared_recoded$grade_e
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_own_E <- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_own * lending_club_full_raw_clean_dummied_cleared_recoded$grade_e
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_rent_E <- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_rent * lending_club_full_raw_clean_dummied_cleared_recoded$grade_e
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_mort_F <- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_mortgage * lending_club_full_raw_clean_dummied_cleared_recoded$grade_f
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_own_F <- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_own * lending_club_full_raw_clean_dummied_cleared_recoded$grade_f
+lending_club_full_raw_clean_dummied_cleared_recoded$home_ownsh_x_rent_F <- lending_club_full_raw_clean_dummied_cleared_recoded$home_ownership_rent * lending_club_full_raw_clean_dummied_cleared_recoded$grade_f
+
+#add our interaction term of loan term * loan amount
+lending_club_full_raw_clean_dummied_cleared_recoded$loan_amnt_x_term_36 <- lending_club_full_raw_clean_dummied_cleared_recoded$loan_amnt * lending_club_full_raw_clean_dummied_cleared_recoded$term_months_36
+
+#keep the rows for which we have principal components (i.e. delete the rows for which there is no desc)
+lending_club_full_raw_clean_dummied_cleared_recoded <- data.frame(lending_club_full_raw_clean_dummied_cleared_recoded[new_matrix_index,])
+lending_club_full_recoded_dummied_with_text <- cbind(lending_club_full_raw_clean_dummied_cleared_recoded,new_matrix_pr_df_selection)
+```
+
+## 3.4. Comparison of logistic regression with and without the principal componentss
+
+```{r text mining comparison, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#partition our data to analyse the added value of text mining
+smp_size_4 <- floor(0.6 * nrow(lending_club_full_recoded_dummied_with_text))
+
+#set a seed to make the sample reproductible
+set.seed(1234)
+train_text_all_plus_text <- sample(seq_len(nrow(lending_club_full_recoded_dummied_with_text)), size = smp_size_2)
+
+#assign the training and the testing datasets to new dfs
+train_for_all_plus_text <- lending_club_full_recoded_dummied_with_text[train_ind, ]
+test_for_all_plus_text <- lending_club_full_recoded_dummied_with_text[-train_ind, ]
+
+#create datasets without the text
+train_for_all_without_text <- train_for_all_plus_text[,c(1:33)]
+test_for_all_without_text <- test_for_all_plus_text[,c(1:33)]
+
+#train the logistic regression without the text
+logistic_reg_without_text <- glm(default ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = train_for_all_without_text)
+summary(logistic_reg_without_text)
+
+#predict the dataset without text with the logistic regression without text
+logistic_reg_pred_without_text <- data.frame(predict(logistic_reg_without_text, newdata = test_for_all_without_text, type = "response"))
+names(logistic_reg_pred_without_text)[1] = "prediction"
+
+#create the ROC curve for the logistic regression without text
+PRROC_obj <- roc.curve(scores.class0 = logistic_reg_pred_without_text$prediction, weights.class0=test_for_all_without_text$default,
+                       curve=TRUE)
+plot(PRROC_obj)
+
+#run the same logistic regression with the same variables as before plus the principal components
+logistic_reg_with_text <- glm(default ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36 +
+                        PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PC11 + PC12 + PC13 + PC14 + PC15 + PC16 + PC17 + PC18 + PC19 + PC20 + PC21 + PC22 + PC23 + PC24 + PC25 + PC26 + PC27 + PC28 + PC29 + PC30,
+                        family = binomial,
+                        data = train_for_all_plus_text)
+summary(logistic_reg_with_text)
+
+#predict the dataset with text with the logistic regression that includes the principal components
+logistic_reg_pred_with_text <- data.frame(predict(logistic_reg_with_text, newdata = test_for_all_plus_text, type = "response"))
+names(logistic_reg_pred_with_text)[1] = "prediction"
+
+#create the ROC curve for the logistic regression with the principal components
+PRROC_obj <- roc.curve(scores.class0 = logistic_reg_pred_with_text$prediction, weights.class0=test_for_all_plus_text$default,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+# 4. Sources
+
+* [UC-R.io: Regression trees](https://uc-r.github.io/regression_trees)\
+* [Statology.org: Classification and regression trees in R](https://www.statology.org/classification-and-regression-trees-in-r/)\
+* [Hackernoon.com: Random Forest Regression in R code and interpretation](https://hackernoon.com/random-forest-regression-in-r-code-and-interpretation)\
+* [R-bloggers.com](https://www.r-bloggers.com/2018/01/how-to-implement-random-forests-in-r/)\
+* [Red-gate.com: Text mining and sentiment analysis in R](https://www.red-gate.com/simple-talk/databases/sql-server/bi-sql-server/text-mining-and-sentiment-analysis-with-r/)\
+* [Geeksforgeeks.org: K-nn classifier in R programming](https://www.geeksforgeeks.org/k-nn-classifier-in-r-programming/)\
+* [Analyticsindiamag.com: A guide to term document matrix zith its implementation in R and Python](https://analyticsindiamag.com/a-guide-to-term-document-matrix-with-its-implementation-in-r-and-python/#:~:text=Term%20document%20matrix%20is%20also,the%20matrix%20represent%20the%20word.)\
+* [Cornell.edu: Basic Text Mining with R](https://rstudio-pubs-static.s3.amazonaws.com/132792_864e3813b0ec47cb95c7e1e2e2ad83e7.html)\
+* [Towardsdatascience.com: Principal Component Analysis - PCA 101 Using R](https://towardsdatascience.com/principal-component-analysis-pca-101-using-r-361f4c53a9ff)\
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

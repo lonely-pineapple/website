@@ -8,9 +8,7 @@ tags: ["R", "Logistic", "Regression", "Loan", "Default"]
 
 
 
-<div id="workshop-3---questions" class="section level1">
-<h1>Workshop 3 - Questions</h1>
-<pre class="r"><code>#load the data from lending club
+<pre class="r"><code>#load the dataset about borrowers, their characteristics and they having defaulted or not
 
 lendingclub &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/lending_club_raw_data.csv&quot;)))
 lendingclub_clean &lt;- lendingclub[,c(1:19)]
@@ -32,8 +30,10 @@ head(lendingclub_clean,10)</code></pre>
 ## #   home_ownership &lt;chr&gt;, verification_status &lt;chr&gt;, issue_d &lt;chr&gt;,
 ## #   zip_code &lt;chr&gt;, addr_state &lt;chr&gt;, loan_status &lt;chr&gt;, desc &lt;chr&gt;,
 ## #   purpose &lt;chr&gt;, title &lt;chr&gt;</code></pre>
-<div id="lets-go-to-the-full-dataset.-create-a" class="section level2">
-<h2>1. Let’s go to the full dataset. Create a […]</h2>
+<div id="data-cleaning" class="section level1">
+<h1>1. Data cleaning</h1>
+<div id="create-a-variable-that-takes-the-value-1-if-the-loan-is-charged-off-and-0-otherwise." class="section level2">
+<h2>1.1. Create a variable that takes the value 1 if the loan is charged off, and 0 otherwise.</h2>
 <pre class="r"><code>#create the column in which we will store the binary values of the loan status
 loan_stat_binary &lt;- lendingclub_clean$loan_status
 lendingclub_clean &lt;- cbind(lendingclub_clean,loan_stat_binary)
@@ -50,15 +50,18 @@ colnames(lendingclub_clean)</code></pre>
 ## [16] &quot;loan_status&quot;         &quot;desc&quot;                &quot;purpose&quot;            
 ## [19] &quot;title&quot;               &quot;loan_stat_binary&quot;</code></pre>
 </div>
-<div id="investigate-how-often-do-loans-default-create-a-correlation" class="section level2">
-<h2>2. Investigate, how often do loans default? Create a correlation […]</h2>
+<div id="investigate-the-frequency-of-loans-defaulting" class="section level2">
+<h2>1.2. Investigate the frequency of loans defaulting</h2>
 <pre class="r"><code>#select the quantitative variables and create a correlation plot
 lendingclub_quant &lt;- lendingclub_clean[c(1:2,4:5,7,20)]
 ggpairs(lendingclub_quant)</code></pre>
 <p><img src="/projects/logistic_reg_files/figure-html/correlation%20matrix-1.png" width="672" /></p>
 </div>
-<div id="create-a-smaller-dataset-10000-observations-to-investigate" class="section level2">
-<h2>3. Create a smaller dataset (10,000 observations) to investigate […]</h2>
+</div>
+<div id="create-a-logistic-regression-model-to-predict-the-probability-of-default-of-loans" class="section level1">
+<h1>2. Create a logistic regression model to predict the probability of default of loans</h1>
+<div id="create-the-logistic-regression-model" class="section level2">
+<h2>2.1. Create the logistic regression model</h2>
 <pre class="r"><code>#create a sample from the data of 10,000 observations
 lendingclub_sample &lt;- sample(lendingclub_clean,10000)
 
@@ -135,8 +138,8 @@ table(lendingclub_sample$loan_stat_binary, pred_log_reg_cut_off_15)</code></pre>
 ##   0 5202 2460
 ##   1  792  493</code></pre>
 </div>
-<div id="lets-try-to-improve-the-models-accuracy-by-adding-more-variables-including" class="section level2">
-<h2>5. Let’s try to improve the model’s accuracy by adding more variables, including […]</h2>
+<div id="add-new-variables-to-try-to-increase-the-accuracy-of-our-logistic-regression-model" class="section level2">
+<h2>2.2. Add new variables to try to increase the accuracy of our logistic regression model</h2>
 <pre class="r"><code>#reduce the number of categories for several variables
 lendingclub_sample$emp_length &lt;- recode(lendingclub_sample$emp_length, &#39;&lt; 1 year&#39; = &#39;&lt; 2 years&#39;, &#39;1 year&#39; = &#39;&lt; 2 years&#39;, &#39;2 years&#39; = &#39;2-5 years&#39;, &#39;3 years&#39; = &#39;2-5 years&#39;, &#39;4 years&#39; = &#39;2-5 years&#39;, &#39;5 years&#39; = &#39;2-5 years&#39;, &#39;6 years&#39; = &#39;&gt; 5 years&#39;,&#39;7 years&#39; = &#39;&gt; 5 years&#39;,&#39;8 years&#39; = &#39;&gt; 5 years&#39;,&#39;9 years&#39; = &#39;&gt; 5 years&#39;,&#39;10+ years&#39; = &#39;&gt; 5 years&#39;)
 
@@ -480,8 +483,9 @@ PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_4_clean$pred_log_reg, weigh
 plot(PRROC_obj)</code></pre>
 <p><img src="/projects/logistic_reg_files/figure-html/fourth%20logistic%20reg-1.png" width="672" /></p>
 </div>
-<div id="the-model-we-have-estimated-in-the-previous-step-used-the-same-data-to-estimate" class="section level2">
-<h2>6. The model we have estimated in the previous step used the same data to estimate […]</h2>
+</div>
+<div id="train-our-logistic-regression-model-on-a-testing-data-set-and-test-it-on-a-training-data-set" class="section level1">
+<h1>3. Train our logistic regression model on a testing data set and test it on a training data set</h1>
 <pre class="r"><code>#select 60% of the sample
 smp_size &lt;- floor(0.6 * nrow(lendingclub_sample_dummied_cleaned_names))
 
@@ -596,10 +600,10 @@ PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_on_test_clean$pred_on_test,
 plot(PRROC_obj)</code></pre>
 <p><img src="/projects/logistic_reg_files/figure-html/training%20and%20testing%20datasets-1.png" width="672" /></p>
 </div>
-<div id="lets-exploit-the-model-to-select-loans-to-invest." class="section level2">
-<h2>7. Let’s exploit the model to select loans to invest.</h2>
-<div id="a.-before-we-focus-on-a-more-realistic-revenue-model" class="section level3">
-<h3>a. Before we focus on a more realistic revenue model […]</h3>
+<div id="determine-the-optimal-cut-off-point-for-different-value-in-pl" class="section level1">
+<h1>4. Determine the optimal cut-off point for different value in P&amp;L</h1>
+<div id="determine-the-optimal-cut-off-point-on-the-whole-dataset-for-l-100-et-p203040" class="section level2">
+<h2>4.1. Determine the optimal cut-off point on the whole dataset for L=-100 et P={20,30,40}</h2>
 <pre class="r"><code>#select actual defaults the from training set
 training_loan_stat &lt;- train[&quot;loan_stat_binary&quot;]
 
@@ -816,8 +820,8 @@ PRROC_obj &lt;- roc.curve(scores.class0 = pred_on_trained_vs_trained$pred_on_tra
 plot(PRROC_obj)</code></pre>
 <p><img src="/projects/logistic_reg_files/figure-html/sensitivity%20trained%20on%20trained-4.png" width="672" /></p>
 </div>
-<div id="b.-investigate-whether-the-optimal-investment-cuttoff" class="section level3">
-<h3>b. Investigate whether the optimal investment cuttoff […]</h3>
+<div id="determine-the-optimal-cut-off-using-the-validation-dataset" class="section level2">
+<h2>4.2. Determine the optimal cut-off using the validation dataset</h2>
 <pre class="r"><code>#select defaults from testing set
 test_loan_stat &lt;- test[&quot;loan_stat_binary&quot;]
 
@@ -1022,8 +1026,8 @@ PRROC_obj &lt;- roc.curve(scores.class0 = pred_on_test_vs_trained$pred_on_test, 
 plot(PRROC_obj)</code></pre>
 <p><img src="/projects/logistic_reg_files/figure-html/sensitivity%20trained%20on%20test-4.png" width="672" /></p>
 </div>
-<div id="c.-lets-stay-with-the-validation-dataset-which-has-4000-loans.-lets-build-a-d.-investigate-how-sensitive-is-the-performance-of-your" class="section level3">
-<h3>c. Let’s stay with the validation dataset (which has 4,000 loans). Let’s build a […] &amp; d. Investigate how sensitive is the performance of your […]</h3>
+<div id="determine-the-optimal-cut-off-point-for-l--50-and-p-monthly-installment-number-of-months-loan-amount---1" class="section level2">
+<h2>4.3. Determine the optimal cut-off point for L = -50% and P = monthly installment * number of months / loan amount - 1</h2>
 <pre class="r"><code>#select all the terms used to compute the new return
 test_loan_excerpt &lt;- test[c(&quot;term_months&quot;,&quot;loan_amnt&quot;,&quot;installment&quot;,&quot;loan_stat_binary&quot;)]
 
@@ -1313,11 +1317,10 @@ graph_trained_on_test_function(-0)</code></pre>
 <p><img src="/projects/logistic_reg_files/figure-html/sensivity%20trained%20on%20test%20with%20realistic%20return-5.png" width="672" /></p>
 </div>
 </div>
-</div>
-<div id="assessment-2" class="section level1">
-<h1>Assessment 2</h1>
-<div id="format-the-assessment-2-dataset" class="section level2">
-<h2>1. Format the assessment 2 dataset</h2>
+<div id="improve-the-logistic-regression-model-using-another-dataset" class="section level1">
+<h1>5. Improve the logistic regression model using another dataset</h1>
+<div id="format-the-new-dataset" class="section level2">
+<h2>5.1. Format the new dataset</h2>
 <pre class="r"><code>#read the assessment data
 assessment_data &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/assessment_raw_data.csv&quot;)))
 
@@ -1365,8 +1368,8 @@ colnames(assessment_data_dummied_cleaned_names)</code></pre>
 ## [33] &quot;home_ownsh_x_own_F&quot;               &quot;home_ownsh_x_rent_F&quot;             
 ## [35] &quot;loan_amnt_x_term_36&quot;</code></pre>
 </div>
-<div id="fit-our-best-model-on-the-formatted-assessment-2-data-set" class="section level2">
-<h2>2. Fit our best model on the formatted assessment 2 data set</h2>
+<div id="fit-the-best-model-on-that-new-dataset" class="section level2">
+<h2>5.2. Fit the best model on that new dataset</h2>
 <pre class="r"><code>#train our latest model on the lending club sample used in the workshop (note: we did not use the purpose variables since informatiom about purposes was not available)
 logistic_reg_assessment_data &lt;- glm(loan_stat_binary ~ 
                         loan_amnt + 
@@ -1463,8 +1466,8 @@ ggplot(pred_logistic_reg_assessment_data_df_complete, aes(x=predicted_default_pr
     y     = &quot;Return if no default&quot;) #changing y-axis label to sentence case</code></pre>
 <p><img src="/projects/logistic_reg_files/figure-html/using%20best%20model%20on%20assessment%20data-1.png" width="672" /></p>
 </div>
-<div id="use-our-best-model-to-compute-the-pl-on-the-assessment-2-dataset" class="section level2">
-<h2>3. Use our best model to compute the P&amp;L on the assessment 2 dataset</h2>
+<div id="use-our-best-model-to-compute-the-pl-on-the-new-dataset" class="section level2">
+<h2>5.3. Use our best model to compute the P&amp;L on the new dataset</h2>
 <pre class="r"><code>#create a column with binary predicted default values based on the cut7-off
 pred_logistic_reg_assessment_data_df_complete$predicted_default_binary &lt;- ifelse(pred_logistic_reg_assessment_data_df_complete$predicted_default_prob &gt; 0.2, 1, 0)
 

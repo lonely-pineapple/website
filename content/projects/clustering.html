@@ -1,0 +1,1165 @@
+---
+title: "Clustering, linear regression and logistic regression"
+author: "Hadrien Pistre"
+date: 2022-05-11T21:13:14-05:00
+categories: ["R Projects"]
+tags: ["Clustering", "Linear regression", "Logistic regression"]
+---
+
+
+
+<pre><code>## 
+## Attaching package: &#39;dplyr&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:stats&#39;:
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<pre><code>## Loading required package: ggplot2</code></pre>
+<pre><code>## Loading required package: lattice</code></pre>
+<pre><code>## randomForest 4.7-1</code></pre>
+<pre><code>## Type rfNews() to see new features/changes/bug fixes.</code></pre>
+<pre><code>## 
+## Attaching package: &#39;randomForest&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
+## 
+##     margin</code></pre>
+<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
+## 
+##     combine</code></pre>
+<pre><code>## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --</code></pre>
+<pre><code>## v tibble  3.1.6     v purrr   0.3.4
+## v tidyr   1.2.0     v stringr 1.4.1
+## v readr   2.1.2     v forcats 0.5.1</code></pre>
+<pre><code>## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+## x randomForest::combine() masks dplyr::combine()
+## x dplyr::filter()         masks stats::filter()
+## x dplyr::lag()            masks stats::lag()
+## x purrr::lift()           masks caret::lift()
+## x randomForest::margin()  masks ggplot2::margin()</code></pre>
+<pre><code>## 
+## Attaching package: &#39;janitor&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:stats&#39;:
+## 
+##     chisq.test, fisher.test</code></pre>
+<pre><code>## 
+## Attaching package: &#39;e1071&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:rsample&#39;:
+## 
+##     permutations</code></pre>
+<pre><code>## 
+## Attaching package: &#39;lubridate&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     date, intersect, setdiff, union</code></pre>
+<pre><code>## Registered S3 method overwritten by &#39;GGally&#39;:
+##   method from   
+##   +.gg   ggplot2</code></pre>
+<pre><code>## Welcome! Want to learn more? See two factoextra-related books at https://goo.gl/ve3WBa</code></pre>
+<pre><code>## 
+## Attaching package: &#39;gridExtra&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:randomForest&#39;:
+## 
+##     combine</code></pre>
+<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
+## 
+##     combine</code></pre>
+<pre><code>## Registered S3 method overwritten by &#39;parameters&#39;:
+##   method                         from      
+##   format.parameters_distribution datawizard</code></pre>
+<pre><code>## 
+## Attaching package: &#39;parameters&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:e1071&#39;:
+## 
+##     kurtosis</code></pre>
+<pre><code>## The following object is masked from &#39;package:caret&#39;:
+## 
+##     compare_models</code></pre>
+<pre><code>## Loading required package: NLP</code></pre>
+<pre><code>## 
+## Attaching package: &#39;NLP&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
+## 
+##     annotate</code></pre>
+<pre><code>## Loading required package: RColorBrewer</code></pre>
+<div id="data-cleaning" class="section level2">
+<h2>0. Data cleaning</h2>
+<pre class="r"><code>#load the data from lending club
+iplayer_data_raw &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/iplayer_data_sample.csv&quot;)))
+
+#check features of iplayer raw data
+names(iplayer_data_raw)</code></pre>
+<pre><code>## [1] &quot;user_id&quot;            &quot;program_id&quot;         &quot;series_id&quot;         
+## [4] &quot;genre&quot;              &quot;programme_duration&quot; &quot;start_date_time&quot;   
+## [7] &quot;time_viewed&quot;        &quot;streaming_id&quot;</code></pre>
+<pre class="r"><code>#check values of iplayer raw data
+# str(iplayer_data_raw)
+
+#inspect NAs
+iplayer_data_raw_na &lt;- iplayer_data_raw %&gt;% 
+  filter(is.na(program_id))
+head(iplayer_data_raw_na)</code></pre>
+<pre><code>## # A tibble: 6 x 8
+##   user_id program_id series_id genre programme_duration start_date_time    
+##   &lt;chr&gt;   &lt;chr&gt;      &lt;chr&gt;     &lt;chr&gt; &lt;time&gt;             &lt;dttm&gt;             
+## 1 3f01c0  &lt;NA&gt;       &lt;NA&gt;      &lt;NA&gt;     NA              2017-01-01 03:52:52
+## 2 939de9  &lt;NA&gt;       &lt;NA&gt;      &lt;NA&gt;     NA              2017-01-01 14:04:22
+## 3 8c1c3e  &lt;NA&gt;       &lt;NA&gt;      &lt;NA&gt;     NA              2017-01-01 16:35:40
+## 4 95253   &lt;NA&gt;       &lt;NA&gt;      &lt;NA&gt;     NA              2017-01-01 18:21:56
+## 5 6e95fe  &lt;NA&gt;       &lt;NA&gt;      &lt;NA&gt;     NA              2017-01-01 18:28:58
+## 6 33ffe9  &lt;NA&gt;       &lt;NA&gt;      &lt;NA&gt;     NA              2017-01-01 20:25:50
+## # ... with 2 more variables: time_viewed &lt;dbl&gt;, streaming_id &lt;chr&gt;</code></pre>
+<pre class="r"><code>#remove NAs
+iplayer_data_raw_no_nas &lt;- iplayer_data_raw %&gt;%
+  filter(!is.na(program_id))
+head(iplayer_data_raw_no_nas)</code></pre>
+<pre><code>## # A tibble: 6 x 8
+##   user_id program_id series_id genre        programme_durat~ start_date_time    
+##   &lt;chr&gt;   &lt;chr&gt;      &lt;chr&gt;     &lt;chr&gt;        &lt;time&gt;           &lt;dttm&gt;             
+## 1 fd9cf7  75936f     aca56e    Entertainme~ 00:35            2017-01-01 00:00:11
+## 2 c1d0f5  75936f     aca56e    Entertainme~ 00:35            2017-01-01 00:00:13
+## 3 68ffda  75936f     aca56e    Entertainme~ 00:35            2017-01-01 00:00:18
+## 4 e5d9af  91015f     528bf3    Music        02:25            2017-01-01 00:00:22
+## 5 9d130f  75936f     aca56e    Entertainme~ 00:35            2017-01-01 00:00:25
+## 6 f42e4a  75936f     aca56e    Entertainme~ 00:35            2017-01-01 00:00:29
+## # ... with 2 more variables: time_viewed &lt;dbl&gt;, streaming_id &lt;chr&gt;</code></pre>
+<pre class="r"><code>#create a new column programme_duration_min and convert program duration to minutes
+res &lt;- hms(iplayer_data_raw_no_nas$programme_duration)        # format to &#39;hours:minutes:seconds&#39;
+iplayer_data_raw_no_nas$programme_duration_min &lt;- hour(res)*60 + minute(res)
+
+#delete all programs with duration less than 0.5 minutes
+iplayer_data_raw_no_nas &lt;- iplayer_data_raw_no_nas %&gt;%
+  filter(!iplayer_data_raw_no_nas$programme_duration_min &lt; 0.5)
+
+#create a new column time_viewed_min and convert the time_view to minutes (1 minute = 60,000 miliseconds)
+iplayer_data_raw_no_nas$time_viewed_min &lt;- iplayer_data_raw_no_nas$time_viewed / 60000
+
+#delete time_viewed&lt; 5 seconds (5 seconds = 0.0833 minute)
+iplayer_data_raw_no_nas &lt;- iplayer_data_raw_no_nas %&gt;%
+  filter(!iplayer_data_raw_no_nas$programme_duration_min &lt; 0.0833)
+
+#check if time watched is greater than duration
+iplayer_data_raw_no_nas$time_viewed_greater_than_dur = ifelse(iplayer_data_raw_no_nas$time_viewed_min &gt; iplayer_data_raw_no_nas$programme_duration_min,1,0)
+
+#create a new variable called “time_viewed_min_enriched&quot; and set it equal to the minimum of duration and time viewed in minutes
+iplayer_data_raw_no_nas$time_viewed_min_enriched &lt;- with(iplayer_data_raw_no_nas, pmin(programme_duration_min, time_viewed_min))
+
+#create a variable “% watched” that calculates the proportion of a show watcheds
+iplayer_data_raw_no_nas$percent_watched &lt;- (iplayer_data_raw_no_nas$time_viewed_min_enriched/iplayer_data_raw_no_nas$programme_duration_min)*100
+
+#create a dummy variable called “True_Engagement” that takes the value 1 if time watched is at least 60% of the show’s duration or at least 20 minutes, and 0 otherwise
+iplayer_data_raw_no_nas$true_engagement &lt;- ifelse(iplayer_data_raw_no_nas$percent_watched &gt; 60 | iplayer_data_raw_no_nas$time_viewed_min &gt; 20,1,0)
+
+#create date view and time view
+iplayer_data_raw_no_nas[c(&quot;date_viewed&quot;, &quot;time_viewed&quot;)] &lt;- str_split_fixed(iplayer_data_raw_no_nas$start_date_time, &quot; &quot;, 2)
+
+#create a month_of_the_year variable
+iplayer_data_raw_no_nas$month_of_the_year &lt;- substring(iplayer_data_raw_no_nas$date_viewed, 6, 7)
+
+#create a day_of_week_viewed variable
+iplayer_data_raw_no_nas$day_of_week_viewed &lt;- substring(iplayer_data_raw_no_nas$date_viewed, 9, 10)
+
+
+#create a weekend dummy variable
+iplayer_data_raw_no_nas$month_and_day &lt;- paste(iplayer_data_raw_no_nas$month_of_the_year,iplayer_data_raw_no_nas$day_of_week_viewed)
+
+iplayer_data_raw_no_nas$weekend_dummy &lt;- ifelse(iplayer_data_raw_no_nas$month_and_day == &quot;01 01&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 01&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 07&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 08&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 14&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 15&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 21&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 22&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 28&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;01 29&quot; |
+                                                iplayer_data_raw_no_nas$month_and_day == &quot;02 04&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;02 05&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;02 11&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;02 12&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;02 18&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;02 19&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;02 25&quot; | iplayer_data_raw_no_nas$month_and_day == &quot;02 26&quot;
+                                                ,1,0)
+
+#create time-of-day variable that takes the value “N” if the viewing occurs between 10pm and 6am, “D” if the viewing occurs between 6am and 2pm, and “E” otherwise
+iplayer_data_raw_no_nas$hour_viewed &lt;- substring(iplayer_data_raw_no_nas$time_viewed, 1, 2)
+iplayer_data_raw_no_nas$time_of_day &lt;- ifelse(iplayer_data_raw_no_nas$hour_viewed == 22,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 23,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 00,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 01,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 02,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 03,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 04,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 05,&quot;N&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 06,&quot;D&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 07,&quot;D&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 08,&quot;D&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 09,&quot;D&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 10,&quot;D&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 11,&quot;D&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 12,&quot;D&quot;,ifelse(iplayer_data_raw_no_nas$hour_viewed == 13,&quot;D&quot;,&quot;E&quot;))))))))))))))))
+
+# write_xlsx(iplayer_data_raw_no_nas,&quot;C:\\Users\\hadri\\Desktop\\iplayer_data_raw_no_nas.xlsx&quot;)</code></pre>
+</div>
+<div id="supply-and-demand" class="section level2">
+<h2>1. Supply and demand</h2>
+<p>We create two stacked bar charts to compare the supply and demand of programs and time viewed</p>
+<pre class="r"><code>iplayer_data_raw_no_nas_jan &lt;- filter(iplayer_data_raw_no_nas, month_of_the_year == &quot;01&quot;)
+
+#minutes demanded by genre
+demand_by_genre_mins &lt;- iplayer_data_raw_no_nas_jan %&gt;%
+  group_by(genre) %&gt;% 
+  summarize(sum(time_viewed_min_enriched))
+
+#number of users by genre
+demand_by_genre_users &lt;- iplayer_data_raw_no_nas_jan %&gt;%
+  group_by(genre) %&gt;% 
+  summarise(count = n_distinct(user_id))
+
+#minutes supplied by genre
+supply_by_genre_minutes &lt;- iplayer_data_raw_no_nas_jan %&gt;%
+  group_by(genre) %&gt;% 
+  summarize(sum(programme_duration_min))
+
+#programs supplied by genre
+supply_by_genre_programs &lt;- iplayer_data_raw_no_nas_jan %&gt;%
+  group_by(genre) %&gt;% 
+  summarise(count = n_distinct(program_id))
+
+#create a table with supply and demand
+supply_vs_demand &lt;- data.frame(cbind(demand_by_genre_mins$genre,demand_by_genre_mins$`sum(time_viewed_min_enriched)`,demand_by_genre_users$count,supply_by_genre_minutes$`sum(programme_duration_min)`,supply_by_genre_programs$count))
+names(supply_vs_demand)[1:5] &lt;- c(&quot;genre&quot;,&quot;demand_minutes&quot;,&quot;demand_num_of_users&quot;,&quot;supply_minutes&quot;,&quot;supply_num_of_programs&quot;)
+supply_vs_demand[2:5] &lt;- lapply(supply_vs_demand[2:5], as.numeric)
+supply_vs_demand$demand_minutes &lt;- round(supply_vs_demand$demand_minutes,0)
+
+#clear the NAs
+supply_vs_demand &lt;- subset(supply_vs_demand, genre!=&quot;N/A&quot;)
+
+#create the difference of supply and demand for our stacked bar chart
+supply_vs_demand$supply_minus_demand_minutes &lt;- supply_vs_demand$supply_minutes - supply_vs_demand$demand_minutes
+
+#pivot longer to create the bar chart
+supply_vs_demand_long &lt;- supply_vs_demand %&gt;% 
+  pivot_longer(
+    cols = c(2:6),
+    names_to = &quot;type&quot;, 
+    values_to = &quot;values&quot;
+  )
+
+#divide by 1000 for better readability
+supply_vs_demand_long$values_000 &lt;- supply_vs_demand_long$values/1000
+
+head(supply_vs_demand_long)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##   genre      type                        values values_000
+##   &lt;chr&gt;      &lt;chr&gt;                        &lt;dbl&gt;      &lt;dbl&gt;
+## 1 Children&#39;s demand_minutes               22010     22.0  
+## 2 Children&#39;s demand_num_of_users            369      0.369
+## 3 Children&#39;s supply_minutes               51931     51.9  
+## 4 Children&#39;s supply_num_of_programs         996      0.996
+## 5 Children&#39;s supply_minus_demand_minutes  29921     29.9  
+## 6 Comedy     demand_minutes               53443     53.4</code></pre>
+<pre class="r"><code>#add a Z to put the demanded minutes below in our stacked bar chart
+supply_vs_demand_long$type &lt;- recode(supply_vs_demand_long$type,&quot;demand_minutes&quot; = &quot;zdemand_minutes&quot;)
+
+#create the bar chart
+supply_vs_demand_long_minutes &lt;- filter(supply_vs_demand_long, type == &quot;supply_minus_demand_minutes&quot; |  type == &quot;zdemand_minutes&quot;)
+ggplot(supply_vs_demand_long_minutes, aes(x = reorder(genre, desc(values_000)), y = values_000, fill = type))+
+  geom_col() +
+  scale_fill_discrete(labels = c(&quot;Minutes supplied - Minutes viewed&quot;, &quot;Minutes viewed&quot;))+
+  theme_bw() +
+  theme(legend.position = &quot;bottom&quot;) +
+  labs (
+      title = &quot;Minutes viewed vs Minutes supplied minus Minutes viewed&quot;,
+      x     = &quot;Genre&quot;,
+      y     = &quot;Minutes (000s)&quot;,
+      fill = &quot;Legend&quot;)</code></pre>
+<p><img src="/projects/clustering_files/figure-html/supply%20and%20demand-1.png" width="672" /></p>
+<pre class="r"><code>#create a side-by-side bar chart
+supply_vs_demand_long_minutes &lt;- filter(supply_vs_demand_long, type == &quot;demand_num_of_users&quot; |  type == &quot;supply_num_of_programs&quot;)
+ggplot(supply_vs_demand_long_minutes, aes(x = reorder(genre, desc(values)), y = values, fill = type))+
+  geom_col(position = &quot;dodge&quot;) +
+  scale_fill_discrete(labels = c(&quot;Number of users&quot;, &quot;Number of programs&quot;))+
+  theme_bw() +
+  theme(legend.position = &quot;bottom&quot;) +
+  labs (
+      title = &quot;Number of users vs Number of programs&quot;,
+      x     = &quot;Genre&quot;,
+      y     = &quot;Number&quot;,
+      fill = &quot;Legend&quot;)</code></pre>
+<p><img src="/projects/clustering_files/figure-html/supply%20and%20demand-2.png" width="672" /></p>
+</div>
+<div id="customer-segmentation-analysis" class="section level2">
+<h2>2. Customer segmentation analysis</h2>
+<div id="we-create-several-variables-and-then-create-clusters-based-on-those-variables" class="section level3">
+<h3>2.1. We create several variables and then create clusters based on those variables</h3>
+<pre class="r"><code>#create dummies
+iplayer_data_raw_no_nas_jan_dummied &lt;- iplayer_data_raw_no_nas_jan[!grepl(&quot;N/A&quot;, iplayer_data_raw_no_nas_jan$genre),]
+iplayer_data_raw_no_nas_jan_dummied &lt;- dummy_cols(iplayer_data_raw_no_nas_jan_dummied, select_columns = c(&#39;time_of_day&#39;,&#39;genre&#39;))
+iplayer_data_raw_no_nas_jan_dummied &lt;- clean_names(iplayer_data_raw_no_nas_jan_dummied)
+
+#total number of shows watched
+shows_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarise(count = n_distinct(program_id))
+names(shows_by_user)[2] &lt;- &quot;shows_watched&quot;
+
+#total time spent watching shows on iPlayer
+time_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(time_viewed_min_enriched))
+names(time_by_user)[2] &lt;- &quot;time_viewed_enriched&quot;
+
+#number of shows watched during the weekend
+week_end_dummy_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(weekend_dummy))
+names(week_end_dummy_by_user)[2] &lt;- &quot;count_of_week_end_days&quot;
+
+#number of shows that were watch at least at 60% by user
+engagement_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(true_engagement))
+names(engagement_by_user)[2] &lt;- &quot;true_engagement&quot;
+
+#number of shows watched during day time
+D_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(time_of_day_d))
+names(D_by_user)[2] &lt;- &quot;count_of_D&quot;
+
+#number of shows watched in the evening
+E_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(time_of_day_e))
+names(E_by_user)[2] &lt;- &quot;count_of_E&quot;
+
+#number of shows watched in the night
+N_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(time_of_day_n))
+names(N_by_user)[2] &lt;- &quot;count_of_N&quot;
+
+#number of children shows watched
+children_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_childrens))
+names(children_by_user)[2] &lt;- &quot;count_of_children&quot;
+
+#number of comedy shows watched
+comedy_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_comedy))
+names(comedy_by_user)[2] &lt;- &quot;count_of_comedy&quot;
+
+#number of drama shows watched
+drama_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_drama))
+names(drama_by_user)[2] &lt;- &quot;count_of_drama&quot;
+
+#number of entertainment shows watched
+entertainment_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_entertainment))
+names(entertainment_by_user)[2] &lt;- &quot;count_of_entertainment&quot;
+
+#number of factual shows watched
+factual_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_factual))
+names(factual_by_user)[2] &lt;- &quot;count_of_factual&quot;
+
+#number of learning shows watched
+learning_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_learning))
+names(learning_by_user)[2] &lt;- &quot;count_of_learning&quot;
+
+#number of music shows watched
+music_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_music))
+names(music_by_user)[2] &lt;- &quot;count_of_music&quot;
+
+#number of news shows watched
+news_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_news))
+names(news_by_user)[2] &lt;- &quot;count_of_news&quot;
+
+#number of religion and ethics shows watched
+religion_ethics_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_religion_ethics))
+names(religion_ethics_by_user)[2] &lt;- &quot;count_of_religion&quot;
+
+#number of sport shows watched
+sport_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_sport))
+names(sport_by_user)[2] &lt;- &quot;count_of_sport&quot;
+
+#number of weather shows watched
+weather_by_user &lt;- iplayer_data_raw_no_nas_jan_dummied %&gt;%
+  group_by(user_id) %&gt;% 
+  summarize(sum(genre_weather))
+names(weather_by_user)[2] &lt;- &quot;count_of_weather&quot;
+
+#bind all the variables we created together
+proportions &lt;- cbind(shows_by_user,time_by_user$time_viewed_enriched,week_end_dummy_by_user$count_of_week_end_days,engagement_by_user$true_engagement,D_by_user$count_of_D,E_by_user$count_of_E,N_by_user$count_of_N,children_by_user$count_of_children,comedy_by_user$count_of_comedy,drama_by_user$count_of_drama,entertainment_by_user$count_of_entertainment,factual_by_user$count_of_factual,learning_by_user$count_of_learning,music_by_user$count_of_music,news_by_user$count_of_news,religion_ethics_by_user$count_of_religion,sport_by_user$count_of_sport,weather_by_user$count_of_weather)
+
+#rename the columns
+names(proportions) &lt;- c(&quot;user_id&quot;,&quot;shows_watched&quot;,&quot;time_viewed_enriched&quot;,&quot;count_of_week_end_days&quot;,&quot;true_engagement&quot;,&quot;count_of_D&quot;,&quot;count_of_E&quot;,&quot;count_of_N&quot;,&quot;count_of_children&quot;,&quot;count_of_comedy&quot;,&quot;count_of_drama&quot;,&quot;count_of_entertainment&quot;,&quot;count_of_factual&quot;,&quot;count_of_learning&quot;,&quot;count_of_music&quot;,&quot;count_of_news&quot;,&quot;count_of_religion&quot;,&quot;count_of_sport&quot;,&quot;count_of_weather&quot;)
+
+#create the proportions
+proportions$prop_watched_during_weekend &lt;- 1 - proportions$count_of_week_end_days / proportions$shows_watched
+proportions$prop_of_engagement &lt;- proportions$true_engagement / proportions$shows_watched
+proportions$prop_of_D &lt;- proportions$count_of_D / proportions$shows_watched
+proportions$prop_of_E &lt;- proportions$count_of_E / proportions$shows_watched
+proportions$prop_of_N &lt;- proportions$count_of_N / proportions$shows_watched
+proportions$prop_of_children &lt;- proportions$count_of_children / proportions$shows_watched
+proportions$prop_of_comedy &lt;- proportions$count_of_comedy / proportions$shows_watched
+proportions$prop_of_drama &lt;- proportions$count_of_drama / proportions$shows_watched
+proportions$prop_of_entertainment &lt;- proportions$count_of_entertainment / proportions$shows_watched
+proportions$prop_of_factual &lt;- proportions$count_of_factual / proportions$shows_watched
+proportions$prop_of_learning &lt;- proportions$count_of_learning / proportions$shows_watched
+proportions$prop_of_music &lt;- proportions$count_of_music / proportions$shows_watched
+proportions$prop_of_news &lt;- proportions$count_of_news / proportions$shows_watched
+proportions$prop_of_religion &lt;- proportions$count_of_religion / proportions$shows_watched
+proportions$prop_of_sport &lt;- proportions$count_of_sport / proportions$shows_watched
+proportions$prop_of_weather &lt;- proportions$count_of_weather / proportions$shows_watched
+
+#clean the proportions
+proportions$prop_watched_during_weekend &lt;- ifelse(proportions$prop_watched_during_weekend&gt;1,1,proportions$prop_watched_during_weekend)
+proportions$prop_watched_during_weekend &lt;- ifelse(proportions$prop_watched_during_weekend&lt;0,0,proportions$prop_watched_during_weekend)
+
+proportions$prop_of_engagement &lt;- ifelse(proportions$prop_of_engagement&gt;1,1,proportions$prop_of_engagement)
+proportions$prop_of_engagement &lt;- ifelse(proportions$prop_of_engagement&lt;0,0,proportions$prop_of_engagement)
+
+proportions$prop_of_D &lt;- ifelse(proportions$prop_of_D&gt;1,1,proportions$prop_of_D)
+proportions$prop_of_D &lt;- ifelse(proportions$prop_of_D&lt;0,0,proportions$prop_of_D)
+
+proportions$prop_of_E &lt;- ifelse(proportions$prop_of_E&gt;1,1,proportions$prop_of_E)
+proportions$prop_of_E &lt;- ifelse(proportions$prop_of_E&lt;0,0,proportions$prop_of_E)
+
+proportions$prop_of_N &lt;- ifelse(proportions$prop_of_N&gt;1,1,proportions$prop_of_N)
+proportions$prop_of_N &lt;- ifelse(proportions$prop_of_N&lt;0,0,proportions$prop_of_N)
+
+proportions$prop_of_children &lt;- ifelse(proportions$prop_of_children&gt;1,1,proportions$prop_of_children)
+proportions$prop_of_children &lt;- ifelse(proportions$prop_of_children&lt;0,0,proportions$prop_of_children)
+
+proportions$prop_of_comedy &lt;- ifelse(proportions$prop_of_comedy&gt;1,1,proportions$prop_of_comedy)
+proportions$prop_of_comedy &lt;- ifelse(proportions$prop_of_comedy&lt;0,0,proportions$prop_of_comedy)
+
+proportions$prop_of_drama &lt;- ifelse(proportions$prop_of_drama&gt;1,1,proportions$prop_of_drama)
+proportions$prop_of_drama &lt;- ifelse(proportions$prop_of_drama&lt;0,0,proportions$prop_of_drama)
+
+proportions$prop_of_entertainment &lt;- ifelse(proportions$prop_of_entertainment&gt;1,1,proportions$prop_of_entertainment)
+proportions$prop_of_entertainment &lt;- ifelse(proportions$prop_of_entertainment&lt;0,0,proportions$prop_of_entertainment)
+
+proportions$prop_of_factual &lt;- ifelse(proportions$prop_of_factual&gt;1,1,proportions$prop_of_factual)
+proportions$prop_of_factual &lt;- ifelse(proportions$prop_of_factual&lt;0,0,proportions$prop_of_factual)
+
+proportions$prop_of_learning &lt;- ifelse(proportions$prop_of_learning&gt;1,1,proportions$prop_of_learning)
+proportions$prop_of_learning &lt;- ifelse(proportions$prop_of_learning&lt;0,0,proportions$prop_of_learning)
+
+proportions$prop_of_music &lt;- ifelse(proportions$prop_of_music&gt;1,1,proportions$prop_of_music)
+proportions$prop_of_music &lt;- ifelse(proportions$prop_of_music&lt;0,0,proportions$prop_of_music)
+
+proportions$prop_of_news &lt;- ifelse(proportions$prop_of_news&gt;1,1,proportions$prop_of_news)
+proportions$prop_of_news &lt;- ifelse(proportions$prop_of_news&lt;0,0,proportions$prop_of_news)
+
+proportions$prop_of_religion &lt;- ifelse(proportions$prop_of_religion&gt;1,1,proportions$prop_of_religion)
+proportions$prop_of_religion &lt;- ifelse(proportions$prop_of_religion&lt;0,0,proportions$prop_of_religion)
+
+proportions$prop_of_sport &lt;- ifelse(proportions$prop_of_sport&gt;1,1,proportions$prop_of_sport)
+proportions$prop_of_sport &lt;- ifelse(proportions$prop_of_sport&lt;0,0,proportions$prop_of_sport)
+
+proportions$prop_of_weather &lt;- ifelse(proportions$prop_of_weather&gt;1,1,proportions$prop_of_weather)
+proportions$prop_of_weather &lt;- ifelse(proportions$prop_of_weather&lt;0,0,proportions$prop_of_weather)
+
+head(proportions)</code></pre>
+<pre><code>##   user_id shows_watched time_viewed_enriched count_of_week_end_days
+## 1  001d44             1             1.063617                      1
+## 2  002b43             1             1.000000                      0
+## 3  0030d7             1             2.801000                      0
+## 4  00340d             2            59.123317                      2
+## 5  0051a9             3             4.123800                      1
+## 6  0080a1             1            14.384283                      1
+##   true_engagement count_of_D count_of_E count_of_N count_of_children
+## 1               0          0          1          0                 0
+## 2               1          0          1          0                 0
+## 3               0          0          1          0                 0
+## 4               1          0          2          0                 0
+## 5               0          0          3          0                 0
+## 6               0          0          1          0                 0
+##   count_of_comedy count_of_drama count_of_entertainment count_of_factual
+## 1               0              0                      1                0
+## 2               0              0                      1                0
+## 3               0              0                      0                0
+## 4               0              2                      0                0
+## 5               0              1                      0                0
+## 6               0              1                      0                0
+##   count_of_learning count_of_music count_of_news count_of_religion
+## 1                 0              0             0                 0
+## 2                 0              0             0                 0
+## 3                 0              0             0                 0
+## 4                 0              0             0                 0
+## 5                 0              0             1                 0
+## 6                 0              0             0                 0
+##   count_of_sport count_of_weather prop_watched_during_weekend
+## 1              0                0                   0.0000000
+## 2              0                0                   1.0000000
+## 3              1                0                   1.0000000
+## 4              0                0                   0.0000000
+## 5              0                1                   0.6666667
+## 6              0                0                   0.0000000
+##   prop_of_engagement prop_of_D prop_of_E prop_of_N prop_of_children
+## 1                0.0         0         1         0                0
+## 2                1.0         0         1         0                0
+## 3                0.0         0         1         0                0
+## 4                0.5         0         1         0                0
+## 5                0.0         0         1         0                0
+## 6                0.0         0         1         0                0
+##   prop_of_comedy prop_of_drama prop_of_entertainment prop_of_factual
+## 1              0     0.0000000                     1               0
+## 2              0     0.0000000                     1               0
+## 3              0     0.0000000                     0               0
+## 4              0     1.0000000                     0               0
+## 5              0     0.3333333                     0               0
+## 6              0     1.0000000                     0               0
+##   prop_of_learning prop_of_music prop_of_news prop_of_religion prop_of_sport
+## 1                0             0    0.0000000                0             0
+## 2                0             0    0.0000000                0             0
+## 3                0             0    0.0000000                0             1
+## 4                0             0    0.0000000                0             0
+## 5                0             0    0.3333333                0             0
+## 6                0             0    0.0000000                0             0
+##   prop_of_weather
+## 1       0.0000000
+## 2       0.0000000
+## 3       0.0000000
+## 4       0.0000000
+## 5       0.3333333
+## 6       0.0000000</code></pre>
+<pre class="r"><code>#examine the correlations
+proportions_for_clustering &lt;- proportions[,c(2:3,20:35)]
+ggpairs(proportions_for_clustering, columns = 1:18) #no variables are perfectly correlated, no need to remove variables</code></pre>
+<p><img src="/projects/clustering_files/figure-html/examine%20correlations-1.png" width="672" /></p>
+</div>
+<div id="we-determine-the-ideal-number-of-clusters-by-computing-the-inter-cluster-sse-per-number-of-clusters" class="section level3">
+<h3>2.2. We determine the ideal number of clusters by computing the inter-cluster SSE per number of clusters</h3>
+<pre class="r"><code>set.seed(123)
+
+#compute within cluster sum of square 
+wss &lt;- function(k) {
+  kmeans(proportions_for_clustering, k, nstart = 10 )$tot.withinss
+}
+
+#plot the sse by nu;ber of clusters between 1 and 15
+k.values &lt;- 1:15
+
+wss_values &lt;- map_dbl(k.values, wss)
+
+plot(k.values, wss_values,
+       type=&quot;b&quot;, pch = 19, frame = FALSE, 
+       xlab=&quot;Number of clusters K&quot;,
+       ylab=&quot;Total within-clusters sum of squares&quot;)</code></pre>
+<p><img src="/projects/clustering_files/figure-html/sse%20within%20cluster%20by%20number%20of%20cluster-1.png" width="672" /></p>
+<pre class="r"><code>#set number of clusters
+k2 &lt;- kmeans(proportions_for_clustering, centers = 3, nstart = 25)
+k3 &lt;- kmeans(proportions_for_clustering, centers = 4, nstart = 25)
+k4 &lt;- kmeans(proportions_for_clustering, centers = 5, nstart = 25)
+k5 &lt;- kmeans(proportions_for_clustering, centers = 6, nstart = 25)
+
+#create plots to compare
+p1 &lt;- fviz_cluster(k2, geom = &quot;point&quot;, data = proportions_for_clustering) + ggtitle(&quot;k = 3&quot;)
+p2 &lt;- fviz_cluster(k3, geom = &quot;point&quot;,  data = proportions_for_clustering) + ggtitle(&quot;k = 4&quot;)
+p3 &lt;- fviz_cluster(k4, geom = &quot;point&quot;,  data = proportions_for_clustering) + ggtitle(&quot;k = 5&quot;)
+p4 &lt;- fviz_cluster(k5, geom = &quot;point&quot;,  data = proportions_for_clustering) + ggtitle(&quot;k = 6&quot;)
+grid.arrange(p1, p2, p3, p4, nrow = 2)</code></pre>
+<p><img src="/projects/clustering_files/figure-html/plot%20clusters%20for%20different%20number%20of%20clusters-1.png" width="672" /></p>
+</div>
+<div id="finally-once-the-ideal-number-of-clusters-determined-5-we-plot-the-distance-of-each-clusters-center-to-the-variables-centers" class="section level3">
+<h3>2.3. Finally, once the ideal number of clusters determined (5), we plot the distance of each cluster’s center to the variables’ centers</h3>
+<pre class="r"><code>#examine the distance to the center of the variables for each cluster
+res_kmeans &lt;- cluster_analysis(proportions_for_clustering,
+                 n = 5,
+                 method = &quot;kmeans&quot;)
+
+#plot the centers
+predict(res_kmeans)</code></pre>
+<pre><code>##    [1] 2 2 1 1 3 1 2 2 2 2 2 2 2 4 4 1 1 4 2 2 1 2 1 2 1 2 2 2 2 4 2 4 1 1 2 1 1
+##   [38] 2 1 4 1 1 1 2 2 2 4 2 1 4 4 2 1 1 2 1 1 1 2 4 1 2 1 1 2 2 1 1 5 2 4 5 4 1
+##   [75] 2 5 2 1 2 2 1 2 4 2 1 2 2 1 1 1 2 5 1 1 5 2 2 2 1 2 1 1 2 4 1 2 5 1 1 2 1
+##  [112] 1 2 2 2 1 1 1 2 1 5 2 4 4 4 2 1 2 1 4 1 2 1 2 2 4 4 2 4 2 1 1 1 2 2 1 2 2
+##  [149] 4 1 1 1 2 2 1 1 2 2 2 1 1 2 4 1 1 2 1 1 4 2 2 4 1 1 1 2 1 2 2 5 4 1 4 2 2
+##  [186] 4 1 1 2 2 1 2 2 2 1 4 2 4 1 1 2 1 1 4 1 2 2 2 1 1 1 1 2 1 1 4 4 5 1 2 2 1
+##  [223] 1 1 2 1 1 1 1 4 2 4 2 1 2 1 1 2 2 1 2 1 1 2 1 2 2 2 4 2 4 1 2 1 2 1 2 2 2
+##  [260] 4 1 2 4 1 4 1 2 1 2 2 1 4 2 2 2 2 1 2 2 2 1 2 1 5 2 4 1 2 1 1 1 2 2 4 2 2
+##  [297] 4 1 2 1 2 2 1 2 4 5 2 2 2 2 4 2 1 1 2 2 2 1 1 1 1 2 2 1 1 2 1 1 1 2 2 2 1
+##  [334] 1 2 1 1 2 2 2 2 4 2 1 4 2 4 4 1 2 4 4 1 2 4 2 4 2 2 2 2 1 2 2 4 1 2 2 1 2
+##  [371] 1 1 1 2 2 4 2 1 1 5 2 1 4 1 4 4 1 4 5 1 1 1 2 1 1 2 1 1 2 2 2 1 4 2 2 2 1
+##  [408] 1 2 4 1 2 2 4 2 1 1 2 4 4 1 1 1 1 2 1 1 2 1 1 1 4 1 2 1 1 1 4 1 2 1 1 2 2
+##  [445] 5 1 4 1 2 2 1 2 4 1 2 1 2 2 1 2 4 1 2 2 1 1 2 1 2 4 2 1 2 1 2 1 5 1 1 2 1
+##  [482] 1 1 4 4 4 2 1 2 2 2 2 4 1 4 2 1 2 2 2 2 2 1 2 2 4 2 1 1 2 2 2 1 4 4 2 5 4
+##  [519] 2 2 4 1 2 1 1 5 2 1 1 2 1 2 2 2 4 4 1 2 2 1 1 2 2 1 2 2 1 4 1 1 2 2 2 1 1
+##  [556] 2 2 2 2 2 2 2 2 1 2 1 1 1 1 2 1 1 2 1 1 1 4 1 2 4 5 2 2 2 4 1 2 1 2 1 1 4
+##  [593] 2 2 1 4 1 1 4 1 2 4 1 1 1 4 1 5 2 1 2 5 1 1 2 4 1 1 2 2 5 2 2 1 1 2 1 1 2
+##  [630] 1 1 1 1 2 4 4 1 2 1 2 1 4 2 1 2 2 1 1 1 2 2 1 4 1 2 2 2 4 1 1 1 1 2 5 5 2
+##  [667] 2 2 4 1 1 1 1 1 4 4 2 4 2 2 1 1 4 2 1 2 2 2 1 1 2 2 1 1 1 2 2 4 4 5 2 2 4
+##  [704] 2 1 4 2 1 1 2 1 2 4 1 2 2 4 2 2 1 2 2 1 4 2 2 2 4 2 1 4 2 1 1 1 1 2 1 1 1
+##  [741] 1 1 4 2 1 1 2 3 2 4 2 2 1 2 2 2 2 1 2 1 2 1 1 1 1 1 2 2 1 1 1 1 1 1 1 3 1
+##  [778] 2 2 2 1 2 1 1 2 2 1 2 1 1 4 4 1 5 2 2 1 1 4 4 1 1 2 4 1 1 2 4 3 1 1 4 1 2
+##  [815] 4 1 1 4 1 1 4 3 2 5 1 4 1 1 1 5 1 2 2 1 1 2 2 2 4 1 1 2 4 2 1 2 2 1 1 2 4
+##  [852] 1 4 3 2 1 1 2 1 2 1 1 2 1 1 1 1 1 2 4 4 1 1 2 2 2 2 1 2 2 1 1 4 2 1 2 2 1
+##  [889] 1 1 2 4 2 1 1 1 1 1 1 1 1 2 1 1 2 2 2 2 1 1 2 2 1 1 2 4 1 4 1 5 4 2 2 1 1
+##  [926] 2 4 2 2 2 2 1 1 1 1 2 1 2 5 2 1 1 2 1 1 2 2 1 1 4 2 2 5 2 4 1 2 4 2 1 1 5
+##  [963] 1 2 1 2 5 2 2 4 2 2 2 1 1 2 1 2 4 2 2 1 1 1 3 1 2 4 2 2 2 4 2 1 1 2 3 1 1
+## [1000] 2 2 2 1 4 1 1 2 1 2 2 4 1 2 2 4 1 4 4 2 4 1 1 2 4 1 2 1 4 2 1 2 4 4 4 2 2
+## [1037] 2 2 2 1 1 1 1 2 1 4 4 4 2 4 1 2 1 1 2 1 2 1 2 4 5 2 2 2 1 2 1 1 5 2 3 4 1
+## [1074] 4 1 1 4 2 1 2 1 5 2 4 4 1 1 1 3 2 1 2 4 1 2 3 2 2 2 4 2 2 2 1 2 2 2 1 2 2
+## [1111] 1 2 3 2 4 1 1 3 2 3 1 2 2 1 4 4 1 1 1 2 4 2 2 2 5 1 1 1 2 2 5 2 2 1 2 1 4
+## [1148] 5 2 4 2 1 4 1 2 2 4 1 4 2 2 1 1 1 2 4 2 2 1 1 2 2 1 1 1 2 2 2 2 1 4 2 2 1
+## [1185] 2 1 2 2 2 4 1 1 1 2 2 4 2 2 2 1 1 2 2 1 2 2 1 5 1 1 4 1 1 1 1 1 2 2 3 2 2
+## [1222] 2 2 1 1 4 2 1 1 2 1 2 2 1 1 2 1 1 2 1 2 1 1 1 1 1 1 1 1 2 1 1 1 2 3 1 2 1
+## [1259] 1 4 2 4 4 4 2 4 2 4 1 1 3 2 1 2 2 4 1 1 2 1 4 1 4 5 2 1 1 2 2 1 1 5 1 2 2
+## [1296] 1 4 1 1 1 4 1 2 2 2 1 1 2 2 2 1 1 1 2 1 2 2 2 4 2 2 1 2 1 1 4 4 1 1 1 2 4
+## [1333] 3 2 1 2 2 1 2 2 1 4 5 2 4 2 1 1 1 1 1 4 2 2 5 1 2 1 1 2 1 1 4 2 4 4 4 1 1
+## [1370] 1 4 4 2 1 2 2 2 2 1 4 1 2 1 4 2 1 2 4 2 2 1 1 4 2 1 2 1 2 2 5 2 4 1 1 1 1
+## [1407] 1 2 2 2 2 1 2 1 2 2 1 2 1 3 2 4 1 2 2 5 2 1 1 2 2 2 2 1 2 1 1 1 1 1 1 2 2
+## [1444] 2 4 2 4 2 1 1 1 4 5 2 2 1 4 2 4 2 4 2 2 4 2 1 2 1 1 2 2 4 2 1 2 1 2 2 2 1
+## [1481] 1 4 2 3 2 1 2 4 1 4 2 3 2 2 4 5 2 2 1 1 2 2 1 1 2 2 2 2 1 1 2 1 2 1 2 4 1
+## [1518] 1 1 4 4 1 2 2 2 1 1 1 4 1 2 1 2 4 2 1 1 2 2 2 2 1 4 2 1 2 2 2 2 1 2 4 2 2
+## [1555] 1 1 1 1 1 1 2 2 1 2 1 4 4 1 1 4 3 2 4 2 2 2 2 1 1 2 2 2 4 1 4 1 1 1 4 1 1
+## [1592] 4 2 1 1 3 1 1 2 2 4 1 1 4 2 1 2 1 4 1 5 2 2 1 4 4 3 5 2 1 2 1 2 2 4 1 4 1
+## [1629] 2 1 2 2 1 4 4 1 1 1 1 2 2 2 2 5 1 2 2 2 1 1 1 4 2 2 1 2 1 4 1 4 5 4 1 2 1
+## [1666] 2 1 1 2 2 1 1 1 1 2 2 2 1 2 4 4 2 2 2 1 1 2 1 1 2 1 2 2 1 1 2 3 1 2 2 1 5
+## [1703] 2 2 2 5 4 4 2 1 2 1 4 1 2 1 4 1 4 2 4 2 1 1 2 2 2 1 4 2 2 4 1 2 2 4 1 1 2
+## [1740] 2 4 1 1 4 2 4 2 1 1 1 2 1 1 1 2 2 1 2 1 1 4 2 1 2 2 2 2 1 1 2 1 2 2 1 2 1
+## [1777] 1 3 1 1 2 1 2 1 2 1 4 1 1 2 2 2 2 2 4 2 1 1 2 2 2 2 2 1 2 1 4 2 4 4 5 1 1
+## [1814] 1 1 2 1 2 5 1 4 2 4 2 1 2 2 2 2 2 2 1 1 2 1 1 2 4 2 5 2 2 2 1 2 2 1 2 2 1
+## [1851] 4 2 1 1 2 2 2 4 1 5 1 2 2 2 1 1 2 2 4 1 2 1 4 1 3 1 4 2 2 1 1 2 2 4 4 2 2
+## [1888] 4 4 1 1 1 2 1 1 1 4 1 1 2 1 1 5 3 2 1 2 2 1 1 2 4 1 4 2 2 1 2 5 1 1 1 4 4
+## [1925] 2 1 4 1 2 2 1 5 4 2 2 2 2 2 2 1 2 2 2 4 2 1 2 1 2 4 2 1 1 1 2 2 1 1 1 4 1
+## [1962] 4 4 1 1 4 1 1 1 4 4 2 1 4 2 4 1 5 1 2 2 2 1 1 2 4 1 2 1 1 2 2 1 2 5 2 2 2
+## [1999] 1 1 3 2 2 2 1 2 1 1 1 1 4 1 2 2 2 2 1 4 1 1 2 2 2 2 2 5 2 1 2 2 2 2 1 1 2
+## [2036] 1 1 1 1 1 1 1 1 2 2 2 2 2 1 1 2 2 1 2 2 2 2 2 2 1 2 4 1 1 5 5 4 1 2 3 1 1
+## [2073] 1 1 2 2 2 1 2 2 2 2 2 1 2 4 4 4 2 5 2 2 2 2 1 4 2 2 5 1 1 1 2 4 1 4 2 5 2
+## [2110] 2 1 2 1 4 2 2 2 2 4 2 4 1 2 1 1 1 1 2 1 2 1 2 1 1 1 4 4 1 4 2 1 5 1 2 2 2
+## [2147] 4 1 1 4 2 1 1 2 2 2 2 1 1 4 2 1 2 2 1 2 4 4 2 2 2 1 1 1 1 2 1 2 3 2 4 2 2
+## [2184] 2 1 2 1 2 1 4 1 4 4 2 2 4 2 1 4 1 2 2 2 2 2 2 1 2 2 2 1 1 1 1 1 4 2 2 2 1
+## [2221] 2 4 1 4 2 1 3 1 1 3 2 2 1 2 4 4 1 3 2 2 2 2 2 1 4 1 1 1 5 5 2 2 1 2 2 1 1
+## [2258] 2 1 1 4 4 2 1 2 1 2 1 1 2 2 1 1 2 2 2 2 4 1 2 2 5 4 1 2 4 1 2 1 1 2 2 2 2
+## [2295] 1 4 2 1 1 1 1 3 4 1 2 1 4 1 1 1 2 2 1 1 2 2 4 1 2 2 1 1 2 2 4 1 2 1 1 1 1
+## [2332] 1 2 2 1 2 4 1 4 2 2 4 1 1 2 2 2 4 4 1 2 1 4 1 2 1 1 2 2 2 2 1 2 4 1 1 2 1
+## [2369] 2 1 1 1 1 1 2 2 1 2 1 2 1 1 1 4 2 2 1 4 5 2 2 2 2 1 1 1 1 1 2 1 4 1 4 5 2
+## [2406] 2 2 1 2 2 2 4 4 2 2 4 5 4 1 5 1 1 1 1 2 2 2 1 2 2 3 5 2 2 1 1 4 2 2 2 1 2
+## [2443] 2 2 1 1 2 5 2 2 2 2 1 4 4 3 1 2 2 2 1 4 1 1 2 1 2 1 2 2 2 3 1 1 1 2 1 1 1
+## [2480] 2 1 1 2 4 1 2 1 1 2 2 2 2 4 2 4 4 2 2 1 1 2 2 2 4 2 2 1 1 5 2 2 2 1 2 2 4
+## [2517] 1 1 1 1 2 1 2 2 4 1 4 1 1 1 1 2 5 2 1 2 2 2 1 1 2 2 2 4 2 1 1 2 1 1 1 1 5
+## [2554] 5 4 2 2 1 1 1 5 2 2 4 1 1 2 1 1 4 2 2 2 2 2 4 4 1 2 2 1 1 4 1 1 1 1 2 2 4
+## [2591] 1 1 1 2 1 2 1 2 1 1 2 1 1 2 2 3 1 2 2 1 2 1 1 2 2 4 1 1 4 1 2 2 2 2 1 2 1
+## [2628] 1 2 2 2 4 2 1 2 1 2 4 2 1 2 2 1 1 2 4 1 5 2 1 1 1 1 1 1 1 2 2 1 2 2 1 2 1
+## [2665] 3 2 2 2 1 1 2 1 2 2 4 4 2 2 2 2 1 1 2 2 2 4 1 1 1 2 1 1 2 2 1 1 1 2 2 1 2
+## [2702] 2 2 2 1 1 2 2 4 2 5 4 3 1 2 2 2 2 1 1 3 4 2 4 4 2 1 1 1 1 2 2 1 2 2 2 4 2
+## [2739] 1 4 1 2 2 2 1 1 4 4 1 4 2 1 2 2 1 2 2 2 2 2 4 4 2 2 1 1 2 2 1 1 2 2 2 2 4
+## [2776] 1 2 2 2 1 1 4 2 1 2 2 1 2 2 2 2 2 2 4 1 2 2 1 1 2 1 1 2 1 4 1 1 5 1 1 2 1
+## [2813] 1 4 2 2 4 1 4 1 2 2 4 2 2 2 4 4 1 1 4 2 1 1 1 2 1 2 1 1 2 1 2 4 1 2 2 1 1
+## [2850] 2 2 2 1 1 1 2 4 1 2 4 2 2 2 4 4 2 1 2 1 2 1 1 2 1 2 1 5 1 1 1 2 1 1 2 4 2
+## [2887] 1 5 2 2 1 2 2 4 1 2 5 2 2 2 1 2 1 4 1 5 1 2 2 4 1 2 5 4 1 2 1 4 1 1 1 1 2
+## [2924] 2 2 1 1 4 2 1 4 2 1 1 2 1 4 2 1 3 5 2 1 1 4 1 2 2 1 1 1 5 2 4 2 1 1 2 1 2
+## [2961] 2 2 2 1 1 2 1 4 1 1 2 2 2 2 2 2 2 2 4 1 4 2 4 1 1 1 3 2 2 1 4 1 1 1 2 1 1
+## [2998] 2 2 1 4 2 1 2 1 1 2 1 1 2 1 5 1 1 1 2 2 1 1 4 4 5 1 1 1 1 2 2 1 1 2 1 4 2
+## [3035] 4 1 2 1 2 1 2 1 1 1 1 4 2 2 1 1 2 1 2 1 2 1 3 2 2 5 1 1 1 1 1 1 2 2 2 1 1
+## [3072] 2 4 3 3 1 1 1 2 2 1 1 2 1 5 2 2 1 5 2 1 1 1 2 2 1 1 1 2 1 1 1 2 2 4 1 4 2
+## [3109] 4 4 2 1 4 2 3 1 2 2 2 1 4 1 2 1 2 1 2 2 2 1 2 2 2 1 1 2 2 5 2 4 2 4 1 2 1
+## [3146] 2 1 1 1 2 2 2 4 2 1 2 2 2 2 2 2 2 2 2 1 2 2 1 4 2 4 1 2 1 2 1 2 2 4 4 2 2
+## [3183] 4 2 2 1 1 1 1 4 2 2 1 4 2 1 1 2 2 2 1 4 2 1 5 1 2 1 1 4 2 2 4 2 1 1 2 1 2
+## [3220] 1 2 1 1 1 2 3 2 4 1 4 2 2 2 2 2 1 2 2 4 1 2 2 2 1 4 2 2 4 1 1 1 1 2 2 2 3
+## [3257] 2 1 1 2 2 2 2 4 2 2 1 2 1 2 1 2 4 1 2 1 1 1 5 1 1 2 1 1 1 4 2 2 2 4 2 4 5
+## [3294] 4 1 2 1 2 1 5 1 1 2 2 1 2 2 4 2 1 1 2 1 1 4 2 2 2 2 2 2 2 2 1 2 2 2 2 1 2
+## [3331] 1 1 2 1 2 2 2 2 1 1 2 2 2 2 2 1 1 2 1 1 1 4 2 1 4 2 2 1 1 4 2 2 4 2 1 2 1
+## [3368] 2 2 4 2 2 1 1 4 2 1 2 2 1 1 1 2 1 1 1 2 4 2 1 2 2 1 1 4 5 2 1 1 3 2 1 3 1
+## [3405] 2 2 4 2 5 4 2 2 1 2 2 1 1 2 2 5 2 1 2 5 1 4 1 4 2 4 3 2 2 1 5 2 2 1 2 1 1
+## [3442] 2 1 4 2 1 1 1 1 2 2 2 4 1 2 2 1 1 2 1 1 1 3 5 1 2 4 1 2 1 2 2 1 2 2 1 5 2
+## [3479] 4 4 1 1 1 2 2 1 5 2 4 2 1 2 5 2 1 4 1 1 2 4 4 1 1 2 2 3 2 1 2 4 2 1 1 1 2
+## [3516] 4 1 1 1 2 2 2 5 4 4 2 1 4 1 2 1 4 1 2 4 1 2 2 2 2 4 2 1 2 1 4 2 3 4 2 1 1
+## [3553] 2 1 2 2 4 2 1 1 2 4 2 4 4 4 1 2 1 2 1 4 1 2 2 1 2 2 2 4 4 5 2 2 1 2 1 4 2
+## [3590] 2 1 1 2 2 1 2 1 2 1 2 1 4 1 5 1 2 1 1 2 2 1 2 2 2 1 4 2 1 2 2 1 4 1 1 2 2
+## [3627] 1 1 1 1 2 1 2 1 2 5 1 2 1 1 2 1 2 2 1 4 2 2 2 1 1 4 1 1 4 2 1 2 2 1 2 1 4
+## [3664] 4 1 2 1 1 2 2 1 1 4 2 2 1 1 1 2 1 2 2 1 4 1 1 1 2 1 2 1 2 1 1 2 4 1 2 1 1
+## [3701] 4 1 4 1 1 2 2 5 5 1 1 1 2 4 1 5 2 1 1 4 1 1 2 2 1 2 1 2 2 2 1 1 1 1 1 1 1
+## [3738] 2 1 1 2 2 1 4 2 2 2 1 2 2 2 1 4 1 1 2 1 2 1 1 1 4 1 1 1 1 2 1 2 1 1 1 2 2
+## [3775] 2 5 2 2 4 2 1 1 2 4 1 1 2 2 4 1 1 1 1 4 2 2 2 2 2 1 4 2 1 2 4 4 2 2 5 1 2
+## [3812] 1 2 4 1 1 2 2 1 2 2 1 1 4 2 1 4 4 1 4 2 2 5 2 2 4 2 3 1 2 2 1 1 4 4 2 2 1
+## [3849] 1 2 2 2 3 1 2 1 4 1 2 1 5 4 1 1 1 4 4 2 2 1 2 3 2 2 2 4 2 2 1 1 4 2 1 4 2
+## [3886] 4 1 1 4 1 2 4 2 1 2 1 3 2 2 1 2 3 2 2 2 2 5 4 2 2 1 1 2 2 2 2 1 2 2 2 1 1
+## [3923] 2 1 1 2 1 2 4 1 2 1 1 2 2 2 2 2 2 4 2 1 4 1 2 1 1 2 2 4 2 2 2 1 1 2 2 2 1
+## [3960] 2 1 2 4 1 2 2 2 2 2 2 1 2 1 1 2 4 2 1 1 1 5 2 1 1 4 1 5 1 2 2 2 2 1 2 5 2
+## [3997] 2 1 1 2 1 1 2 5 1 2 5 2 1 1 2 4 2 2 1 1 1 2 2 1 2 2 1 2 4 2 1 2 2 4 1 2 1
+## [4034] 1 1 2 1 1 1 2 2 5 2 1 1 4 5 2 1 1 1 2 1 4 2 2 2 1 1 2 2 4 1 2 1 2 1 4 1 4
+## [4071] 2 2 4 1 1 2 2 1 2 1 2 4 1 1 5 2 1 4 1 1 4 4 2 4 1 2 2 2 4 1 1 4 2 1 1 2 2
+## [4108] 1 2 2 1 1 2 2 2 4 5 1 1 2 1 1 1 1 3 1 4 1 2 1 2 2 1 2 2 4 1 4 2 2 2 2 1 2
+## [4145] 2 2 2 2 1 1 2 2 1 1 4 2 1 1 2 1 4 4 2 2 4 4 2 1 2 1 1 1 5 1 1 4 1 1 4 1 2
+## [4182] 1 2 2 4 2 1 4 2 2 1 2 2 1 2 1 1 1 2 4 1 4 4 2 2 2 1 2 2 2 2 2 1 1 1 1 4 4
+## [4219] 2 2 1 1 2 4 1 1 1 2 1 1 1 2 2 2 2 1 2 1 2 2 2 2 2 2 1 1 4 1 2 2 1 2 1 1 2
+## [4256] 2 1 2 1 2 1 2 2 1 4 1 4 4 2 2 1 1 1 2 1 1 1 1 2 2 1 5 2 1 1 2 1 3 2 1 2 1
+## [4293] 4 2 2 1 2 2 2 1 1 2 1 1 2 2 4 2 5 4 2 2 1 2 4 4 2 1 2 2 1 2 1 1 2 2 1 2 4
+## [4330] 5 2 4 1 1 1 5 2 2 1 2 1 1 2 1 1 2 2 2 2 2 4 2 2 1 2 2 2 2 1 1 1 1 1 1 1 2
+## [4367] 1 2 1 1 2 4 2 1 2 1 4 4 1 2 1 2 2 1 1 2 2 1 1 2 1 4 1 2 1 4 4 1 1 1 1 1 1
+## [4404] 1 4 2 1 2 1 1 1 2 3 2 2 2 2 4 2 1 2 4 1 1 1 1 5 2 1 2 1 2 1 2 1 4 1 1 1 4
+## [4441] 2 2 1 2 2 1 1 1 1 4 5 1 2 2 2 5</code></pre>
+<pre class="r"><code>plot(summary(res_kmeans))</code></pre>
+<p><img src="/projects/clustering_files/figure-html/examine%20the%20centers-1.png" width="672" /></p>
+</div>
+</div>
+<div id="predictive-modelling" class="section level2">
+<h2>3. Predictive modelling</h2>
+<div id="we-compute-the-average-number-of-shows-and-time-viewed-by-users-in-february-who-already-watched-a-show-in-january" class="section level3">
+<h3>3.1. We compute the average number of shows and time viewed by users in February who already watched a show in January</h3>
+<pre class="r"><code>#group users by month
+users_by_month &lt;- iplayer_data_raw_no_nas %&gt;%
+  group_by(user_id, month_of_the_year) %&gt;% 
+  summarise(count = n_distinct(program_id), sum(time_viewed_min_enriched))
+names(users_by_month)[2] &lt;- &quot;month&quot;
+
+users_by_month$month &lt;- as.integer(users_by_month$month)
+names(users_by_month)[3:4] &lt;- c(&quot;programs_watched&quot;,&quot;time_viewed&quot;)
+
+#sum the months
+users_summed_months &lt;- users_by_month %&gt;%
+  group_by(user_id) %&gt;% 
+  summarise(sum(month))
+names(users_summed_months)[2] &lt;- &quot;months&quot;
+
+#filter for users of both january and february
+users_both_month &lt;- subset(users_summed_months, months == 3)
+
+#filter for users of january
+users_jan &lt;- subset(users_summed_months, months == 1)
+
+#list the users of only january and both january and february
+no_users_jan = data.frame(n_distinct(users_jan$user_id))
+no_users_both_month = data.frame(n_distinct(users_both_month$user_id))
+
+#filter for users of both month
+vect_users_jan_and_feb &lt;- as.vector(users_both_month$user_id)
+users_jan_and_feb &lt;- filter(users_by_month, user_id %in% vect_users_jan_and_feb)
+
+#users who watched a program in January and in February
+users_jan_and_feb_feb_data &lt;- subset(users_jan_and_feb, month == 2)
+
+head(users_jan_and_feb_feb_data)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+## # Groups:   user_id [6]
+##   user_id month programs_watched time_viewed
+##   &lt;chr&gt;   &lt;int&gt;            &lt;int&gt;       &lt;dbl&gt;
+## 1 001d44      2                2      14.5  
+## 2 00340d      2                2       8.05 
+## 3 0051a9      2                1       5.97 
+## 4 00be1a      2                1       1.57 
+## 5 00e312      2                1       0.379
+## 6 01103f      2                3       7.93</code></pre>
+<pre class="r"><code>#average of program watched in february by users who watched a program in january
+av_both_month_feb_prog_watched &lt;- mean(users_jan_and_feb_feb_data$programs_watched)
+av_both_month_feb_prog_watched</code></pre>
+<pre><code>## [1] 10.73638</code></pre>
+<pre class="r"><code>#average of time viewed in february by users who watched a program in january
+av_both_month_feb_time_viewed &lt;- mean(users_jan_and_feb_feb_data$time_viewed)
+av_both_month_feb_time_viewed</code></pre>
+<pre><code>## [1] 233.5778</code></pre>
+</div>
+<div id="we-create-a-logistic-regression-model-to-predict-which-users-who-saw-a-show-in-january-will-again-see-a-show-in-february" class="section level3">
+<h3>3.2. We create a logistic regression model to predict which users who saw a show in January will again see a show in February</h3>
+<pre class="r"><code>#filter for users that watched a program only in january to get rid of users who only watched a program in february
+users_jan &lt;- as.vector(shows_by_user$user_id)
+user_summed_months_filtered_with_jan_users&lt;- filter(users_summed_months, user_id %in% users_jan)
+
+#create the data for our logistic regression
+log_reg_data &lt;- cbind(proportions$user_id, proportions_for_clustering, user_summed_months_filtered_with_jan_users$months)
+names(log_reg_data)[1] &lt;- &quot;user_id&quot;
+
+#create binary variables to identify users who watched a program both in january and february to run a logistic regression
+log_reg_data$watched_again = ifelse(log_reg_data$`user_summed_months_filtered_with_jan_users$months` == 3,1,0)
+
+#get rid of sum of months
+log_reg_data &lt;- subset(log_reg_data, select = -20 )
+
+head(log_reg_data)</code></pre>
+<pre><code>##   user_id shows_watched time_viewed_enriched prop_watched_during_weekend
+## 1  001d44             1             1.063617                   0.0000000
+## 2  002b43             1             1.000000                   1.0000000
+## 3  0030d7             1             2.801000                   1.0000000
+## 4  00340d             2            59.123317                   0.0000000
+## 5  0051a9             3             4.123800                   0.6666667
+## 6  0080a1             1            14.384283                   0.0000000
+##   prop_of_engagement prop_of_D prop_of_E prop_of_N prop_of_children
+## 1                0.0         0         1         0                0
+## 2                1.0         0         1         0                0
+## 3                0.0         0         1         0                0
+## 4                0.5         0         1         0                0
+## 5                0.0         0         1         0                0
+## 6                0.0         0         1         0                0
+##   prop_of_comedy prop_of_drama prop_of_entertainment prop_of_factual
+## 1              0     0.0000000                     1               0
+## 2              0     0.0000000                     1               0
+## 3              0     0.0000000                     0               0
+## 4              0     1.0000000                     0               0
+## 5              0     0.3333333                     0               0
+## 6              0     1.0000000                     0               0
+##   prop_of_learning prop_of_music prop_of_news prop_of_religion prop_of_sport
+## 1                0             0    0.0000000                0             0
+## 2                0             0    0.0000000                0             0
+## 3                0             0    0.0000000                0             1
+## 4                0             0    0.0000000                0             0
+## 5                0             0    0.3333333                0             0
+## 6                0             0    0.0000000                0             0
+##   prop_of_weather watched_again
+## 1       0.0000000             1
+## 2       0.0000000             0
+## 3       0.0000000             0
+## 4       0.0000000             1
+## 5       0.3333333             1
+## 6       0.0000000             0</code></pre>
+<pre class="r"><code>#create a sample of the data
+log_reg_data_no_id &lt;- subset(log_reg_data, select = -1)
+
+#select 60% of the sample
+smp_size &lt;- floor(0.6 * nrow(log_reg_data_no_id))
+
+#set a seed to make the sample reproductible
+set.seed(456)
+train_ind &lt;- sample(seq_len(nrow(log_reg_data_no_id)), size = smp_size)
+
+#assign the training and the testing datasets to new dfs
+train_log_reg &lt;- log_reg_data_no_id[train_ind, ]
+test_log_reg &lt;- log_reg_data_no_id[-train_ind, ]
+
+#train our logistic regression on the training dataset
+logistic_reg &lt;- glm(watched_again ~ .,
+                    data = train_log_reg)
+summary(logistic_reg)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = watched_again ~ ., data = train_log_reg)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.4727  -0.4707   0.1387   0.4713   0.8139  
+## 
+## Coefficients:
+##                               Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                 -2.117e-01  8.598e-02  -2.462   0.0139 *  
+## shows_watched                5.930e-03  1.429e-03   4.149 3.44e-05 ***
+## time_viewed_enriched         3.527e-05  6.016e-05   0.586   0.5578    
+## prop_watched_during_weekend -1.417e-02  2.333e-02  -0.608   0.5435    
+## prop_of_engagement           4.401e-02  2.599e-02   1.693   0.0906 .  
+## prop_of_D                    1.307e-01  7.865e-02   1.662   0.0967 .  
+## prop_of_E                    1.199e-01  7.949e-02   1.508   0.1317    
+## prop_of_N                    1.435e-01  7.835e-02   1.831   0.0672 .  
+## prop_of_children             5.113e-01  9.720e-02   5.260 1.55e-07 ***
+## prop_of_comedy               6.001e-01  8.827e-02   6.799 1.30e-11 ***
+## prop_of_drama                5.754e-01  8.609e-02   6.683 2.84e-11 ***
+## prop_of_entertainment        5.016e-01  8.971e-02   5.592 2.48e-08 ***
+## prop_of_factual              5.672e-01  8.570e-02   6.618 4.40e-11 ***
+## prop_of_learning             2.752e-01  1.477e-01   1.863   0.0626 .  
+## prop_of_music                5.002e-01  1.043e-01   4.797 1.70e-06 ***
+## prop_of_news                 4.814e-01  8.865e-02   5.430 6.14e-08 ***
+## prop_of_religion             3.791e-01  2.043e-01   1.855   0.0637 .  
+## prop_of_sport                4.093e-01  9.017e-02   4.539 5.89e-06 ***
+## prop_of_weather              4.547e-01  1.305e-01   3.485   0.0005 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for gaussian family taken to be 0.2186977)
+## 
+##     Null deviance: 663.26  on 2672  degrees of freedom
+## Residual deviance: 580.42  on 2654  degrees of freedom
+## AIC: 3543.4
+## 
+## Number of Fisher Scoring iterations: 2</code></pre>
+<pre class="r"><code>#predict with our model on the testing dataset
+predict_log_reg &lt;- predict(logistic_reg, newdata = test_log_reg, type = &quot;response&quot;, family = binomial)
+
+#create a ROC curve
+predict_log_reg_df &lt;- data.frame(predict_log_reg)
+
+ROC_logreg &lt;- cbind(test_log_reg$watched_again,predict_log_reg_df)
+ROC_logreg_clean &lt;- na.omit(ROC_logreg)
+names(ROC_logreg_clean)[1] &lt;- &quot;actual&quot;
+
+PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_clean$predict_log_reg, weights.class0=ROC_logreg_clean$actual,
+                       curve=TRUE)
+PRROC_obj</code></pre>
+<pre><code>## 
+##   ROC curve
+## 
+##     Area under curve:
+##      0.7198215 
+## 
+##     Curve for scores from  0.1892763  to  2.527464 
+##     ( can be plotted with plot(x) )</code></pre>
+<pre class="r"><code>plot(PRROC_obj)
+abline(v = 0.58, col=&quot;blue&quot;, lty=5)
+abline(v = 1.14, col=&quot;red&quot;, lty=7)
+legend(&quot;topleft&quot;, legend=c(&quot;Biggest vert. dist.&quot;),
+       col=c(&quot;blue&quot;), lty=5, cex=0.6)
+legend(&quot;topright&quot;, legend=c(&quot;Chosen cut-off&quot;),
+       col=c(&quot;red&quot;), lty=5, cex=0.6)</code></pre>
+<p><img src="/projects/clustering_files/figure-html/run%20the%20logistic%20regression-1.png" width="672" /></p>
+<pre class="r"><code>#examine the confusion matrices to determine the best cut-off 
+
+cut_off_function &lt;- function(x){
+pred_log_reg_cut_off &lt;- ifelse(predict_log_reg_df$predict_log_reg &gt; x,1,0)
+table(test_log_reg$watched_again, pred_log_reg_cut_off)
+}
+
+#test for different cut-offs
+cut_off_function(0.05)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       1
+##   0 840
+##   1 943</code></pre>
+<pre class="r"><code>cut_off_function(0.1)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       1
+##   0 840
+##   1 943</code></pre>
+<pre class="r"><code>cut_off_function(0.15)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       1
+##   0 840
+##   1 943</code></pre>
+<pre class="r"><code>cut_off_function(0.2)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0   2 838
+##   1   0 943</code></pre>
+<pre class="r"><code>cut_off_function(0.25)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0   2 838
+##   1   0 943</code></pre>
+<pre class="r"><code>cut_off_function(0.3)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0   4 836
+##   1   0 943</code></pre>
+<pre class="r"><code>cut_off_function(0.35)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0  97 743
+##   1  27 916</code></pre>
+<pre class="r"><code>cut_off_function(0.4)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 161 679
+##   1  74 869</code></pre>
+<pre class="r"><code>cut_off_function(0.425)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 223 617
+##   1 103 840</code></pre>
+<pre class="r"><code>cut_off_function(0.45)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 281 559
+##   1 148 795</code></pre>
+<pre class="r"><code>cut_off_function(0.475)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 382 458
+##   1 210 733</code></pre>
+<pre class="r"><code>cut_off_function(0.5)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 540 300
+##   1 315 628</code></pre>
+<pre class="r"><code>cut_off_function(0.525)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 663 177
+##   1 399 544</code></pre>
+<pre class="r"><code>cut_off_function(0.55)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 729 111
+##   1 491 452</code></pre>
+<pre class="r"><code>cut_off_function(0.6)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 770  70
+##   1 577 366</code></pre>
+<pre class="r"><code>cut_off_function(0.65)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 786  54
+##   1 662 281</code></pre>
+<pre class="r"><code>cut_off_function(0.7)</code></pre>
+<pre><code>##    pred_log_reg_cut_off
+##       0   1
+##   0 802  38
+##   1 735 208</code></pre>
+<pre class="r"><code>#the best cut-off is 0.45
+pred_log_reg_cut_off_0_45 &lt;- data.frame(ifelse(predict_log_reg_df$predict_log_reg &gt; 0.45,1,0))</code></pre>
+</div>
+<div id="we-create-a-linear-regression-model-to-determine-how-many-shows-and-how-many-minutes-users-who-watched-a-show-in-january-will-watch-again-in-february" class="section level3">
+<h3>3.3. We create a linear regression model to determine how many shows and how many minutes users who watched a show in January will watch again in February</h3>
+<pre class="r"><code>#small discrepancy in the number of rows between our list of users that watched in january and february and the proportions we computed for each user (only 10 rows) -&gt; we filter out the 10 missing id users
+lin_reg_data &lt;- subset(log_reg_data, watched_again == 1)
+lig_red_data_id &lt;- as.vector(lin_reg_data$user_id)
+
+users_jan_and_feb_feb_data_cleared &lt;- filter(users_jan_and_feb_feb_data, user_id  %in% lig_red_data_id)
+names(users_jan_and_feb_feb_data_cleared)[3:4] &lt;- c(&quot;shows_watched_feb&quot;,&quot;time_viewed_feb&quot;)
+
+#create the data for our linear regression
+lin_reg_data_complete &lt;- cbind(lin_reg_data, users_jan_and_feb_feb_data_cleared$shows_watched_feb, users_jan_and_feb_feb_data_cleared$time_viewed_feb)
+
+names(lin_reg_data_complete)[21:22] &lt;- c(&quot;shows_watched_feb&quot;,&quot;time_viewed_feb&quot;)
+
+head(lin_reg_data_complete)</code></pre>
+<pre><code>##    user_id shows_watched time_viewed_enriched prop_watched_during_weekend
+## 1   001d44             1             1.063617                   0.0000000
+## 4   00340d             2            59.123317                   0.0000000
+## 5   0051a9             3             4.123800                   0.6666667
+## 13  00e312             4            44.648117                   1.0000000
+## 15  01103f             2            91.870733                   1.0000000
+## 18  012ad1             1            11.974050                   0.0000000
+##    prop_of_engagement prop_of_D prop_of_E prop_of_N prop_of_children
+## 1                0.00       0.0       1.0       0.0                0
+## 4                0.50       0.0       1.0       0.0                0
+## 5                0.00       0.0       1.0       0.0                0
+## 13               0.25       0.0       0.5       0.5                0
+## 15               1.00       0.5       0.5       0.0                0
+## 18               0.00       1.0       0.0       0.0                0
+##    prop_of_comedy prop_of_drama prop_of_entertainment prop_of_factual
+## 1             0.0     0.0000000                     1               0
+## 4             0.0     1.0000000                     0               0
+## 5             0.0     0.3333333                     0               0
+## 13            0.0     0.0000000                     0               1
+## 15            0.5     0.5000000                     0               0
+## 18            0.0     0.0000000                     0               0
+##    prop_of_learning prop_of_music prop_of_news prop_of_religion prop_of_sport
+## 1                 0             0    0.0000000                0             0
+## 4                 0             0    0.0000000                0             0
+## 5                 0             0    0.3333333                0             0
+## 13                0             0    0.0000000                0             0
+## 15                0             0    0.0000000                0             0
+## 18                0             0    0.0000000                0             1
+##    prop_of_weather watched_again shows_watched_feb time_viewed_feb
+## 1        0.0000000             1                 2      14.5477000
+## 4        0.0000000             1                 2       8.0521667
+## 5        0.3333333             1                 1       5.9746667
+## 13       0.0000000             1                 1       0.3789167
+## 15       0.0000000             1                 3       7.9316333
+## 18       0.0000000             1                 1      11.4538833</code></pre>
+<pre class="r"><code>#examine the correlation of our variables
+lin_reg_data_complete_corr_analysis &lt;- lin_reg_data_complete[2:22]
+
+ggpairs(lin_reg_data_complete_corr_analysis) #no variables are perfectly correlated, no need to remove variables</code></pre>
+<p><img src="/projects/clustering_files/figure-html/prepare%20data%20for%20linear%20regression-1.png" width="672" /></p>
+<pre class="r"><code>#create a sample of the data
+set.seed(789)
+
+#select 60% of the sample
+smp_size_lin_reg &lt;- floor(0.6 * nrow(lin_reg_data_complete))
+train_ind2 &lt;- sample(seq_len(nrow(lin_reg_data_complete)), size = smp_size_lin_reg)
+
+#assign the training and the testing datasets to new dfs
+train_lin_reg &lt;- lin_reg_data_complete[train_ind2, ]
+test_lin_reg &lt;- lin_reg_data_complete[-train_ind2, ]
+
+#train our linear regression for shows watched on the training dataset
+lin_reg_shows_watched &lt;- lm(shows_watched ~
+                              prop_watched_during_weekend +
+                              prop_of_engagement +
+                              prop_of_D + prop_of_E + prop_of_N +
+                              prop_of_children + prop_of_comedy + prop_of_drama + prop_of_entertainment + prop_of_factual + prop_of_learning + prop_of_music + prop_of_news + prop_of_religion + prop_of_sport + prop_of_weather,
+                              data = train_lin_reg)
+summary(lin_reg_shows_watched)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = shows_watched ~ prop_watched_during_weekend + prop_of_engagement + 
+##     prop_of_D + prop_of_E + prop_of_N + prop_of_children + prop_of_comedy + 
+##     prop_of_drama + prop_of_entertainment + prop_of_factual + 
+##     prop_of_learning + prop_of_music + prop_of_news + prop_of_religion + 
+##     prop_of_sport + prop_of_weather, data = train_lin_reg)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -40.996  -8.422  -3.864   2.104 272.296 
+## 
+## Coefficients:
+##                             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                 -27.0466     4.8728  -5.551 3.39e-08 ***
+## prop_watched_during_weekend   0.2376     1.6759   0.142 0.887298    
+## prop_of_engagement            5.5892     1.8327   3.050 0.002333 ** 
+## prop_of_D                     8.7758     4.5692   1.921 0.054976 .  
+## prop_of_E                    14.2090     4.7301   3.004 0.002712 ** 
+## prop_of_N                    11.8206     4.5482   2.599 0.009448 ** 
+## prop_of_children             19.6028     5.7687   3.398 0.000697 ***
+## prop_of_comedy               19.6664     4.9681   3.959 7.91e-05 ***
+## prop_of_drama                18.5564     4.8682   3.812 0.000144 ***
+## prop_of_entertainment        17.6560     5.0806   3.475 0.000526 ***
+## prop_of_factual              21.0688     4.8321   4.360 1.39e-05 ***
+## prop_of_learning             43.9861    16.8196   2.615 0.009013 ** 
+## prop_of_music                14.2652     6.3618   2.242 0.025095 *  
+## prop_of_news                 36.3403     5.2744   6.890 8.36e-12 ***
+## prop_of_religion             29.3085    14.6703   1.998 0.045927 *  
+## prop_of_sport                14.4797     5.2649   2.750 0.006031 ** 
+## prop_of_weather              49.7825    10.3304   4.819 1.60e-06 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 21.66 on 1420 degrees of freedom
+## Multiple R-squared:  0.09414,    Adjusted R-squared:  0.08393 
+## F-statistic: 9.223 on 16 and 1420 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>#predict the testing dataset with our linear regression of shows watched
+predict_shows_watched &lt;- data.frame(predict(lin_reg_shows_watched, test_lin_reg))
+sse_predict_shows_table &lt;- data.frame(cbind(test_lin_reg$user_id,predict_shows_watched$predict.lin_reg_shows_watched..test_lin_reg.,test_lin_reg$shows_watched))
+names(sse_predict_shows_table)[1:3] &lt;- c(&quot;user_id&quot;,&quot;predicted_shows&quot;,&quot;actual_shows&quot;)
+
+#compute the sse for our linear regression of shows watched
+sse_predict_shows_table$predicted_shows &lt;- as.numeric(sse_predict_shows_table$predicted_shows)
+sse_predict_shows_table$actual_shows &lt;- as.numeric(sse_predict_shows_table$actual_shows)
+sse_predict_shows_table$predicted_shows &lt;- ifelse(sse_predict_shows_table$predicted_shows&lt;0,0,sse_predict_shows_table$predicted_shows)
+sse_predict_shows_table$sse &lt;- (sse_predict_shows_table$actual_shows - sse_predict_shows_table$predicted_shows) ^ 2
+sse_predict_shows &lt;- sum(sse_predict_shows_table$sse)
+sse_predict_shows</code></pre>
+<pre><code>## [1] 414525.8</code></pre>
+<pre class="r"><code>#train our linear regression for time viewed on the training dataset
+lin_reg_time_viewed &lt;- lm(time_viewed_enriched ~
+                              prop_watched_during_weekend +
+                              prop_of_engagement +
+                              prop_of_D + prop_of_E + prop_of_N +
+                              prop_of_children + prop_of_comedy + prop_of_drama + prop_of_entertainment + prop_of_factual + prop_of_learning + prop_of_music + prop_of_news + prop_of_religion + prop_of_sport + prop_of_weather,
+                              data = train_lin_reg)
+summary(lin_reg_time_viewed)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = time_viewed_enriched ~ prop_watched_during_weekend + 
+##     prop_of_engagement + prop_of_D + prop_of_E + prop_of_N + 
+##     prop_of_children + prop_of_comedy + prop_of_drama + prop_of_entertainment + 
+##     prop_of_factual + prop_of_learning + prop_of_music + prop_of_news + 
+##     prop_of_religion + prop_of_sport + prop_of_weather, data = train_lin_reg)
+## 
+## Residuals:
+##    Min     1Q Median     3Q    Max 
+## -922.8 -212.5  -85.5   41.8 5889.8 
+## 
+## Coefficients:
+##                              Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                 -633.6151   110.6970  -5.724 1.27e-08 ***
+## prop_watched_during_weekend   -0.3329    38.0723  -0.009 0.993025    
+## prop_of_engagement           315.5690    41.6331   7.580 6.22e-14 ***
+## prop_of_D                    194.5746   103.7998   1.875 0.061064 .  
+## prop_of_E                    331.3500   107.4555   3.084 0.002085 ** 
+## prop_of_N                    247.3187   103.3235   2.394 0.016811 *  
+## prop_of_children             275.6824   131.0495   2.104 0.035584 *  
+## prop_of_comedy               374.1535   112.8619   3.315 0.000939 ***
+## prop_of_drama                398.7704   110.5915   3.606 0.000322 ***
+## prop_of_entertainment        347.3831   115.4179   3.010 0.002660 ** 
+## prop_of_factual              420.6998   109.7733   3.832 0.000132 ***
+## prop_of_learning             602.6094   382.0976   1.577 0.114993    
+## prop_of_music                291.0863   144.5236   2.014 0.044186 *  
+## prop_of_news                 682.9647   119.8203   5.700 1.46e-08 ***
+## prop_of_religion             508.0682   333.2700   1.524 0.127608    
+## prop_of_sport                298.9408   119.6042   2.499 0.012552 *  
+## prop_of_weather              936.2823   234.6800   3.990 6.96e-05 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 492 on 1420 degrees of freedom
+## Multiple R-squared:  0.09758,    Adjusted R-squared:  0.08741 
+## F-statistic: 9.597 on 16 and 1420 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>#predict the testing dataset with our linear regression of time viewed
+predict_time_viewed &lt;- data.frame(predict(lin_reg_time_viewed, test_lin_reg))
+sse_predict_time_table &lt;- data.frame(cbind(test_lin_reg$user_id,predict_time_viewed$predict.lin_reg_time_viewed..test_lin_reg.,test_lin_reg$time_viewed_enriched))
+names(sse_predict_time_table)[1:3] &lt;- c(&quot;user_id&quot;,&quot;predicted_time&quot;,&quot;actual_time&quot;)
+
+#compute the sse for our linear regression of time viewed
+sse_predict_time_table$predicted_time &lt;- as.numeric(sse_predict_time_table$predicted_time)
+sse_predict_time_table$actual_time &lt;- as.numeric(sse_predict_time_table$actual_time)
+sse_predict_time_table$predicted_time &lt;- ifelse(sse_predict_time_table$predicted_time&lt;0,0,sse_predict_time_table$predicted_time)
+sse_predict_time_table$sse &lt;- (sse_predict_time_table$actual_time - sse_predict_time_table$predicted_time) ^ 2
+sse_predict_time &lt;- sum(sse_predict_time_table$sse)
+sse_predict_time</code></pre>
+<pre><code>## [1] 227111500</code></pre>
+<p>Note that the <code>echo = FALSE</code> parameter was added to the code chunk to prevent printing of the R code that generated the plot.</p>
+</div>
+</div>
