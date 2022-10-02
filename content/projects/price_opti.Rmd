@@ -15,52 +15,6 @@ I performed this analysis on a dataset containing fictitious information about c
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r hidden library, cache=TRUE, echo=FALSE, results='hide'}
-library(tidyverse)
-library(dplyr)
-library(readxl)
-library(qpcR)
-library(fastDummies)
-library(janitor)
-library(kableExtra)
-library(GGally)
-library(huxtable)
-library(caret)
-library(PRROC)
-library(ROCR)
-library(cutpointr)
-library(factoextra)
-library(gridExtra)
-library(cluster)
-
-library(rsample)     
-library(dplyr)       
-library(rpart)       
-library(rpart.plot)  
-library(ipred)       
-library(caret)       
-library(randomForest)
-library(tidyverse)  
-library(fastDummies)
-library(readxl)
-library(janitor)
-library(e1071)
-library(caTools)
-library(class)
-library(tokenizers)
-library(tidytext)
-library(PRROC)
-library(lubridate)
-library(writexl)
-library(ggthemes)
-library(GGally)
-library(factoextra)
-library(cluster)
-library(gridExtra)
-library(parameters)
-library(see)
-```
-
 **Used packages:**
 ```{r library, cache=TRUE, results='hide'}
 library(tidyverse)
@@ -73,12 +27,12 @@ library(kableExtra)
 library(GGally)
 library(huxtable)
 library(caret)
-library(PRROC)
-library(ROCR)
 library(cutpointr)
 library(factoextra)
 library(gridExtra)
 library(cluster)
+library(PRROC)
+library(ROCR)
 ```
 
 
@@ -778,7 +732,7 @@ We now would like to find the prices that maximize respectively profit and reven
 
 First, we try to determine if your data can be clustered: maybe customer groups with different characteristics or habits can be determined. If such groups exist, they may have different sensivities to changes in price: we could then find the optimal 
 
-```{r cluster the data, cache=TRUE}
+```{r cluster the data, cache=TRUE, results=HIDE, results='hide'}
 #getting rid of the additional variables we added previously
 insurance_data_dummied_short_clustering <- insurance_data_dummied_short[,1:19]
 
