@@ -3,7 +3,7 @@ title: "Logistic regression"
 author: "Hadrien Pistre"
 date: 2022-04-17T21:13:14-05:00
 categories: ["R Projects"]
-tags: ["R", "Logistic", "Regression", "Loan", "Default"]
+tags: ["R", "Logistic regression", "Linear regression", "Loan default prediction"]
 ---
 
 ```{r setup, include=FALSE}

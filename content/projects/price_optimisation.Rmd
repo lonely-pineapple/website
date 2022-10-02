@@ -1,0 +1,1087 @@
+---
+title: "Price optimisation"
+author: "Hadrien Pistre"
+date: 2022-10-02T21:13:14-05:00
+categories: ["R Projects"]
+tags: ["Price optimisation", "Logistic regression", "Linear regression", "Elasticity"]
+---
+
+```{r setup, cache=TRUE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+*Libraries used*
+
+```{r library, cache=TRUE, results='hide'}
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(qpcR)
+library(fastDummies)
+library(janitor)
+library(kableExtra)
+library(GGally)
+library(huxtable)
+library(caret)
+library(PRROC)
+library(ROCR)
+library(cutpointr)
+library(factoextra)
+library(gridExtra)
+library(cluster)
+library(PolynomF)
+library(polynom)
+
+
+library(rsample)     
+library(dplyr)       
+library(rpart)       
+library(rpart.plot)  
+library(ipred)       
+library(caret)       
+library(randomForest)
+library(tidyverse)  
+library(fastDummies)
+library(readxl)
+library(janitor)
+library(e1071)
+library(caTools)
+library(class)
+library(tokenizers)
+library(tidytext)
+library(PRROC)
+library(lubridate)
+library(writexl)
+library(ggthemes)
+library(GGally)
+library(factoextra)
+library(cluster)
+library(gridExtra)
+library(parameters)
+library(see)
+
+```
+
+# 1. Exploring the data
+
+## 1.1. Import the data
+
+We start by importing into R the price data from the Excel file by fetching it from the second tab of the spreadsheet.
+
+```{r reading_data, cache=TRUE}
+#read the data from the Excel file
+# insurance_data <- read_excel("C:/Users/Hadrien Pistre/OneDrive - Pearson Ham Consulting Ltd/Desktop/R Folder/PH_training/Brief for Interview_Analyst.xlsx", sheet = 2)
+
+insurance_data <- read_excel("C:/Users/hadri/Desktop/R Folder/data/Brief for Interview_Analyst.xlsx", sheet = 2)
+
+#replace wrong colnammes with the right colnames that are on the data set's first row
+colnames(insurance_data) <- insurance_data[1,]
+
+#delete the first row which is now a duplicate of the colnames
+insurance_data <- insurance_data[-1,]
+```
+
+## 1.2. Format the data
+
+We then examine the types of data we imported. 
++ This data contains only 3 rows containing NAs out of more than 20K rows: we thus decide to delete those rows since their explanatory power is negligible given their small number. 
++ Variables containing numbers are stored as characters on the original data file. We decide to convert those variables to numeric variables.
++ To be able to analyze categorical variables, we decide to create N-1 dummies for each of those variables.
++ Finally, after a qualitative examination, we conclude than only variables 7 to 9 may be colinear. We create a colinear matrix using ggpairs and determine that variables 8 and 9 are colinear; we hence decide to remove variable 9 from our dataset.
+
+```{r exploring_data, cache=TRUE, echo=FALSE}
+
+#examine the types of data
+types_of_data <- str(insurance_data)
+
+#count the number of nas
+na_count <- data.frame(colSums(is.na(insurance_data)))
+variable_names <- data.frame(rownames(na_count))
+na_count <- cbind(variable_names,na_count)
+colnames(na_count) <- c("Variable","Number of NAs")
+na_count
+
+#only three nas for 20K rows => we can omit the nas
+insurance_data <- na.omit(insurance_data)
+
+#clean col names with only lower case letters and _
+insurance_data <- clean_names(insurance_data)
+
+#examine unique values per column to see which one should be dummied
+unique_list <- function(x){
+unique(insurance_data[,x])
+}
+
+for(i in 1:14){}
+un1 <- unique_list(1)
+un2 <- unique_list(2)
+un3 <- unique_list(3)
+un4 <- unique_list(4)
+un5 <- unique_list(5)
+un6 <- unique_list(6)
+un7 <- unique_list(7)
+un8 <- unique_list(8)
+un9 <- unique_list(9)
+un10 <- unique_list(10)
+un11 <- unique_list(11)
+un12 <- unique_list(12)
+un13 <- unique_list(13)
+un14 <- unique_list(14)
+
+#create a dataframe to examine the unique values of the columns we will need to dummy
+qpcR:::cbind.na(un1,un3,un7,un8,un14)
+
+#dummy the relevant columns (the "renewed" column is already binary and is therefore not included)
+insurance_data_dummied <- dummy_cols(insurance_data, select_columns = c('marital_status','gender','payment_method','acquisition_channel'))
+
+#clean the names of the dummy variables
+insurance_data_dummied <- clean_names(insurance_data_dummied)
+
+#remove the non-dummied variables and the colinear dummy variables (we create n-1 dummies for each variable we need to dummy)
+insurance_data_dummied_short <- insurance_data_dummied [,-c(1,3,7,8,19,20,24,28)]
+
+#convert character variables to numeric variables
+numerize_data <- function(x){
+as.numeric(unlist(insurance_data_dummied_short[,x]))
+}
+
+for(i in 1:20){
+insurance_data_dummied_short[,i] <- numerize_data(i)
+}
+
+#check that variables are now numeric
+types_of_data_2 <- str(insurance_data_dummied_short) 
+
+#examine colinearity for the change in price variables (the others have no reason to be colinear since they are fundamentally different)
+ggpairs(insurance_data_dummied_short, columns=c(7:9))
+
+#"percent_change_in_price_vs_last_year" and "grouped_change_in_price" are the same => we get rid of the second one
+insurance_data_dummied_short <- insurance_data_dummied_short[,-9]
+```
+
+# 2. Analyse the factors that drive price
+
+## 2.1. Vizualise the data
+
+### 2.1.1. Examine distributions
+
+We want to visualize the individual impact of each variable on price. We first plot the distribution of all non-dummy variables to examine if they contain outliers that could make our data visualization less relevant.
+
+```{r examine distribution, cache=TRUE}
+
+#create histograms of each non-dummy variable
+
+#price
+ggplot(insurance_data_dummied_short, aes(x=price))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Price",y="Count",title="Price distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#age
+ggplot(insurance_data_dummied_short, aes(x=age))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Age",y="Count",title="Age distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#car value
+ggplot(insurance_data_dummied_short, aes(x=car_value))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Car value",y="Count",title="Car value distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#years of no claim bonus
+ggplot(insurance_data_dummied_short, aes(x=years_of_no_claims_bonus))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Years of no claim bonus",y="Count",title="Years of no claim bonus distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#annual mileage
+ggplot(insurance_data_dummied_short, aes(x=annual_mileage))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Annual mileage",y="Count",title="Annual mileage distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#year of tenure with current provider
+ggplot(insurance_data_dummied_short, aes(x=years_of_tenure_with_current_provider))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Years of tenure with current provider",y="Count",title="Years of tenure with current provider distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#actual change in price vs. last year
+ggplot(insurance_data_dummied_short, aes(x=actual_change_in_price_vs_last_year))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Actual change in price vs. last year",y="Count",title="Actual change in price vs. last year distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#percent change in price vs last year
+ggplot(insurance_data_dummied_short, aes(x=percent_change_in_price_vs_last_year))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Percent change in price vs. last year",y="Count",title="Percent change in price vs. last year distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.1.2. Examine distributions without outliers
+
+We notice that the variables "Car value", "Annual mileage distribution", "Actual change in price vs. last year" and "Percent change in price vs. last year" contain significant outliers. We get rid of the last percentile of the first two variables and of the first and last percentiles of the last two variables to vizualise them properly. We notice that this greatly improve the visualization of their distribution.
+
+```{r delete outliers and reeaxmine distribution, cache=TRUE}
+
+#get rid of the extreme percentiles to improve our data visualization
+insurance_data_dummied_short_no_outliers <- insurance_data_dummied_short %>%
+  subset(car_value < quantile(car_value, 0.99)
+         & annual_mileage < quantile(annual_mileage, 0.99)
+         & actual_change_in_price_vs_last_year < quantile(actual_change_in_price_vs_last_year, 0.99)
+         & actual_change_in_price_vs_last_year > quantile(actual_change_in_price_vs_last_year, 0.01)
+         & percent_change_in_price_vs_last_year < quantile(percent_change_in_price_vs_last_year, 0.99)
+         & percent_change_in_price_vs_last_year > quantile(percent_change_in_price_vs_last_year, 0.01))
+
+#create histograms of each non-dummy variable to re-examine them
+
+#price
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=price))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Price",y="Count",title="Price distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#age
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=age))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Age",y="Count",title="Age distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#car value
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=car_value))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Car value",y="Count",title="Car value distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#years of no claim bonus
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=years_of_no_claims_bonus))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Years of no claim bonus",y="Count",title="Years of no claim bonus distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#annual mileage
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=annual_mileage))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Annual mileage",y="Count",title="Annual mileage distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#years of tenure with current provider
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=years_of_tenure_with_current_provider))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Years of tenure with current provider",y="Count",title="Years of tenure with current provider distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#actual change in price vs. last year
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=actual_change_in_price_vs_last_year))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Actual change in price vs. last year",y="Count",title="Actual change in price vs. last year distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+#percent change in price vs. last year
+ggplot(insurance_data_dummied_short_no_outliers, aes(x=percent_change_in_price_vs_last_year))+
+  geom_histogram(color="black", fill="white")+
+  theme_bw()+
+  labs(x="Percent change in price vs. last year",y="Count",title="Percent change in price vs. last year distribution")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 2.1.3. Vizualise the individual effect of each variable on price
+
+Now that outliers have been removed, we can visualize the individual impact of each non-dummy variable on price.
+
+```{r examine impact of each variable on price, cache=TRUE}
+
+#create scatter plots using ggplot and add a trend line to examine the impact of each variable on price
+
+#price vs age
+ggplot(insurance_data_dummied_short_no_outliers, aes(y=price,x=age))+
+  geom_point()+
+  geom_smooth(color="red")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(title="Price vs. Age",x="Age",y="Price")
+
+#price vs car value
+ggplot(insurance_data_dummied_short_no_outliers, aes(y=price,x=car_value))+
+  geom_point()+
+  geom_smooth(color="red")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(title="Price vs. Car value",x="Car value",y="Price")
+
+#price vs years of no claim bonus
+ggplot(insurance_data_dummied_short_no_outliers, aes(y=price,x=years_of_no_claims_bonus))+
+  geom_point()+
+  geom_smooth(color="red")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(title="Price vs. Years of no claims bonus",x="Years of no claims bonus",y="Price")
+
+#price vs annual mileage
+ggplot(insurance_data_dummied_short_no_outliers, aes(y=price,x=annual_mileage))+
+  geom_point()+
+  geom_smooth(color="red")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(title="Price vs. Annual mileage",x="Annual mileage",y="Price")
+
+#price vs years of tenure with current provider
+ggplot(insurance_data_dummied_short_no_outliers, aes(y=price,x=years_of_tenure_with_current_provider))+
+  geom_point()+
+  geom_smooth(color="red")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(title="Price vs. Years of tenure with current provider",x="Years of tenure with current provider",y="Price")
+
+#price vs actual change in price vs last year
+ggplot(insurance_data_dummied_short_no_outliers, aes(y=price,x=actual_change_in_price_vs_last_year))+
+  geom_point()+
+  geom_smooth(color="red")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(title="Price vs. Actual change in price vs. last year",x="Actual change in price vs last year",y="Price")
+
+#price vs percent change in price vs last year
+ggplot(insurance_data_dummied_short_no_outliers, aes(y=price,x=percent_change_in_price_vs_last_year))+
+  geom_point()+
+  geom_smooth(color="red")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  labs(title="Price vs. Percent change in price vs. last year",x="Percent change in price vs. last year",y="Price")
+```
+
+## 2.2. Analyse the data and create linear regression models to predict the price
+
+### 2.2.1. Create the models
+
+Thanks to our data visualization above, we notice that an increase in the annual change in price vs last year has a negative impact on price when it is negative, and a positive impact on price when it is positive. This means that creating two linear regression models - one used when the actual change in price vs last year is negative, and one when it is positive - could yield a better result than create one linear regression model without any discrimination.
+
+The effects of the other variables on price seem linear, therefore it is unlikely that further subsetting our data based on the other variables would improve the predictive power of our model.
+
+To examine if we can obtain better results using two models rather than one, we first create a linear regression model using all the statistically significant variables at a **95%** confidence interval (=> with a t-stat greater than **1.96**). 
+
+#### Linear regression
+
+*Note: we get rid of the non statistically significant variables*
+
+```{r linear regression model, cache=TRUE}
+
+#let us create a linear regression model for price using all non-dummy variables
+lin_reg_full <- lm(price ~ 
+                  age+
+                  car_value+
+                  years_of_no_claims_bonus+
+                  annual_mileage+
+                  years_of_tenure_with_current_provider+
+                  actual_change_in_price_vs_last_year+
+                  percent_change_in_price_vs_last_year+
+                  renewed+
+                  marital_status_d+
+                  marital_status_m+
+                  marital_status_s+
+                  marital_status_v+
+                  gender_f+
+                  gender_m+
+                  payment_method_annual+
+                  acquisition_channel_aggreg+
+                  acquisition_channel_direct+
+                  acquisition_channel_inbound,
+                data = insurance_data_dummied_short)
+summary(lin_reg_full)
+
+#we remove one by one variables with absolute t-values <2 starting with the smallest: acquisition_channel_direct, gender_m, annual_mileage and acquisition_channel_aggreg
+lin_reg_sig <- lm(price ~ 
+                  age+
+                  car_value+
+                  years_of_no_claims_bonus+
+                  years_of_tenure_with_current_provider+
+                  actual_change_in_price_vs_last_year+
+                  percent_change_in_price_vs_last_year+
+                  renewed+
+                  marital_status_d+
+                  marital_status_m+
+                  marital_status_s+
+                  marital_status_v+
+                  gender_f+
+                  payment_method_annual+
+                  acquisition_channel_inbound,
+                data = insurance_data_dummied_short)
+summary(lin_reg_sig)
+```
+
+#### Linear regression with interaction terms
+
+We now create a linear regression with interaction terms that account for the sign (<0 or >0) of the actual change in price vs. last year by creeating two columns.
+
+```{r linear regression model with actual change in price sign discrimination, cache=TRUE}
+
+#create a column which takes the value of the actual change in price if this change is positive, and zero otherwise
+insurance_data_dummied_short$actual_change_in_price_vs_last_year_pos <- insurance_data_dummied_short$actual_change_in_price_vs_last_year
+insurance_data_dummied_short$actual_change_in_price_vs_last_year_pos[insurance_data_dummied_short$actual_change_in_price_vs_last_year_pos<0] <- "0"
+insurance_data_dummied_short$actual_change_in_price_vs_last_year_pos <- as.numeric(insurance_data_dummied_short$actual_change_in_price_vs_last_year_pos)
+
+#create a column which takes the value of the actual change in price if this change is strictly negative, and zero otherwise
+insurance_data_dummied_short$actual_change_in_price_vs_last_year_neg <- insurance_data_dummied_short$actual_change_in_price_vs_last_year
+insurance_data_dummied_short$actual_change_in_price_vs_last_year_neg[insurance_data_dummied_short$actual_change_in_price_vs_last_year_neg>=0] <- "0"
+insurance_data_dummied_short$actual_change_in_price_vs_last_year_neg <- as.numeric(insurance_data_dummied_short$actual_change_in_price_vs_last_year_neg)
+
+#run our linear regression with the interaction terms (we remove the variable of actual change in price since this data is now encompassed in our new two interaction terms)
+lin_reg_act_pric_disc <- lm(price ~ 
+                  age+
+                  car_value+
+                  years_of_no_claims_bonus+
+                  years_of_tenure_with_current_provider+
+                  percent_change_in_price_vs_last_year+
+                  renewed+
+                  marital_status_d+
+                  marital_status_m+
+                  marital_status_s+
+                  marital_status_v+
+                  gender_f+
+                  payment_method_annual+
+                  acquisition_channel_inbound+
+                  actual_change_in_price_vs_last_year_pos+
+                  actual_change_in_price_vs_last_year_neg,
+                data = insurance_data_dummied_short)
+summary(lin_reg_act_pric_disc)
+```
+
+We observe that we obtain adjusted R-squared of **0.3398** when we add two interaction terms to discriminate for the sign (<0 or >0) of the actual change in price vs. last year, vs **0.3101** when we do not.
+
+### 2.2.2. Backtest the models
+
+We now want to back test our models to see if disriminating based on the change in actual price indeed yields better results. We train our models on a random sample of **60%** of the data, and test it on the remaining **40%**.
+
+#### Linear regression back-testing
+
+```{r back testing of the linear regression model, cache=TRUE}
+
+#define the sample size
+smp_size <- floor(0.6 * nrow(insurance_data_dummied_short))
+set.seed(123)
+train_ind <- sample(seq_len(nrow(insurance_data_dummied_short)), size = smp_size)
+
+#breakdown our data in a training and a testing sets
+insurance_data_dummied_short_train <- insurance_data_dummied_short[train_ind, ]
+insurance_data_dummied_short_test <- insurance_data_dummied_short[-train_ind, ]
+
+#train our model
+lin_reg_sig_trained <- lm(price ~ 
+                  age+
+                  car_value+
+                  years_of_no_claims_bonus+
+                  years_of_tenure_with_current_provider+
+                  actual_change_in_price_vs_last_year+
+                  percent_change_in_price_vs_last_year+
+                  renewed+
+                  marital_status_d+
+                  marital_status_m+
+                  marital_status_s+
+                  marital_status_v+
+                  gender_f+
+                  payment_method_annual+
+                  acquisition_channel_inbound,
+                data = insurance_data_dummied_short_train)
+summary(lin_reg_sig_trained)
+
+#test our model
+lin_reg_sig_tested_data <- data.frame(predict(lin_reg_sig_trained, newdata = insurance_data_dummied_short_test))
+lin_reg_sig_tested_vs_reality <- cbind(lin_reg_sig_tested_data,insurance_data_dummied_short_test$price)
+colnames(lin_reg_sig_tested_vs_reality) <- c("predicted","reality")
+
+#compute the mean squared error and the mean absolute error
+lin_reg_sig_tested_vs_reality$squared_error <- (lin_reg_sig_tested_vs_reality$predicted - lin_reg_sig_tested_vs_reality$reality)^2
+lin_reg_sig_tested_vs_reality$absolute_error <- abs((lin_reg_sig_tested_vs_reality$predicted - lin_reg_sig_tested_vs_reality$reality))
+lin_reg_sig_tested_vs_reality$absolute_error_perc <- abs(((lin_reg_sig_tested_vs_reality$predicted - lin_reg_sig_tested_vs_reality$reality))/lin_reg_sig_tested_vs_reality$predicted)*100
+mse_lin_reg_sig = mean(lin_reg_sig_tested_vs_reality$squared_error)
+mae_lin_reg_sig = mean(lin_reg_sig_tested_vs_reality$absolute_error)
+mape_lin_reg_sig = mean(lin_reg_sig_tested_vs_reality$absolute_error_perc)
+mse_lin_reg_sig
+mae_lin_reg_sig
+mape_lin_reg_sig
+```
+
+#### Linear regression with interaction terms back-testing
+
+```{r back testing of the linear regression model with interaction terms, cache=TRUE}
+
+#train our model
+lin_reg_act_pric_disc_trained <- lm(price ~ 
+                  age+
+                  car_value+
+                  years_of_no_claims_bonus+
+                  years_of_tenure_with_current_provider+
+                  percent_change_in_price_vs_last_year+
+                  renewed+
+                  marital_status_d+
+                  marital_status_m+
+                  marital_status_s+
+                  marital_status_v+
+                  gender_f+
+                  payment_method_annual+
+                  acquisition_channel_inbound+
+                  actual_change_in_price_vs_last_year_pos+
+                  actual_change_in_price_vs_last_year_neg,
+                data = insurance_data_dummied_short_train)
+summary(lin_reg_act_pric_disc_trained)
+
+#test our model
+lin_reg_act_pric_disc_tested_data <- data.frame(predict(lin_reg_act_pric_disc_trained, newdata = insurance_data_dummied_short_test))
+lin_reg_act_pric_disc_tested_vs_reality <- cbind(lin_reg_act_pric_disc_tested_data,insurance_data_dummied_short_test$price)
+colnames(lin_reg_act_pric_disc_tested_vs_reality) <- c("predicted","reality")
+
+#compute the mean squared error and the mean absolute error
+lin_reg_act_pric_disc_tested_vs_reality$squared_error <- (lin_reg_act_pric_disc_tested_vs_reality$predicted - lin_reg_act_pric_disc_tested_vs_reality$reality)^2
+lin_reg_act_pric_disc_tested_vs_reality$absolute_error <- abs((lin_reg_act_pric_disc_tested_vs_reality$predicted - lin_reg_act_pric_disc_tested_vs_reality$reality))
+lin_reg_act_pric_disc_tested_vs_reality$absolute_error_perc <- abs(((lin_reg_act_pric_disc_tested_vs_reality$predicted - lin_reg_act_pric_disc_tested_vs_reality$reality))/lin_reg_act_pric_disc_tested_vs_reality$predicted)*100
+mse_lin_reg_act_pric_disc = mean(lin_reg_act_pric_disc_tested_vs_reality$squared_error)
+mae_lin_reg_act_pric_disc = mean(lin_reg_act_pric_disc_tested_vs_reality$absolute_error)
+mape_lin_reg_act_pric_disc = mean(lin_reg_act_pric_disc_tested_vs_reality$absolute_error_perc)
+mse_lin_reg_act_pric_disc
+mae_lin_reg_act_pric_disc
+mape_lin_reg_act_pric_disc
+```
+
+### 2.2.3. Compare our models
+
+Now that we backtested our linear regression models, we can compare them.
+
+```{r comparison of linear regressions, cache=TRUE}
+#compare the 4 models we ran: the 2 linear regressions ran on the full sample and their back-tested versions
+huxreg(lin_reg_sig, lin_reg_act_pric_disc, lin_reg_sig_trained, lin_reg_act_pric_disc_trained)
+
+#finally, we compare the adjusted R-squared, MSE and MAE of a linear regression vs the weighted average of the linear regression which distriminate for the sign of the actual change in price vs last year
+lin_reg_r2 <- 0.3101
+lin_reg_disc_r2 <- 0.3398
+
+mse_lin_reg_sig <- format(round(unlist(as.numeric(mse_lin_reg_sig,0))), nsmall = 0)
+mse_lin_reg_act_pric_disc <- mse_lin_reg_act_pric_disc <- format(round(unlist(as.numeric(mse_lin_reg_act_pric_disc,0))), nsmall = 0)
+mae_lin_reg_sig <- mae_lin_reg_sig <- format(round(unlist(as.numeric(mae_lin_reg_sig,0))), nsmall = 0)
+mae_lin_reg_act_pric_disc <- mae_lin_reg_act_pric_disc <- format(round(unlist(as.numeric(mae_lin_reg_act_pric_disc,0))), nsmall = 0)
+mape_lin_reg_sig <- mape_lin_reg_sig <- format(round(unlist(as.numeric(mape_lin_reg_sig,0))), nsmall = 0)
+mape_lin_reg_act_pric_disc <- mape_lin_reg_act_pric_disc <- format(round(unlist(as.numeric(mape_lin_reg_act_pric_disc,0))), nsmall = 0)
+
+total_comparables <- data.frame(cbind(lin_reg_r2,lin_reg_disc_r2))
+total_comparables[nrow(total_comparables)+1,] <- cbind(mse_lin_reg_sig,mse_lin_reg_act_pric_disc)
+total_comparables[nrow(total_comparables)+1,] <- cbind(mae_lin_reg_sig,mae_lin_reg_act_pric_disc)
+total_comparables[nrow(total_comparables)+1,] <- cbind(mape_lin_reg_sig,mape_lin_reg_act_pric_disc)
+total_comparables[2,] <- prettyNum(total_comparables[2,],big.mark=",",scientific=FALSE)
+
+colnames(total_comparables) <- c("Linear regression","Linear regression based on sign of actual price change (weighted average)")
+rownames(total_comparables) <- c("Ajudsted R-Square","Mean Square Error (back tested)","Mean Absolute Error (back tested)","Mean Absolute Percentage Error (back tested)")
+
+metrics_names <- rownames(total_comparables)
+total_comparables <- cbind(metrics_names,total_comparables)
+colnames(total_comparables) <- c("Metrics","Linear regression","Linear regression disc. for actual price change")
+
+total_comparables
+```
+
+When looking at the tables, we see that regressing the price for the statistically significant variables gives us an adjusted R-squared of **0.3101**, vs **0.3398** when we use interaction terms. This is a **9.58%** improvement in the accuracy of our model.
+
+This is to be expected because, as explained above, an increase in the actual change in price vs. last year has a negative effect on price when it is negative, but a positive impact when it is positive. The overall effect is positive, but running a linear regression without interaction terms "waters down" that effect. The coefficient for the actual change in price vs last year is indeed **0.097** overall, but **0.182** when positive and **-0.058** when negative.
+
+When backtesting on **40%** of the data, we obtain a MAE and MAPE of respectively **137** and **127** without interaction terms and **34** and **30** with these terms. Interaction terms for the actual change in price therefore decreases MAE by **7.3%** and MAPE by **11.76%**.
+
+Analyzing the data to a greater extent could help coming up with more interaction terms that could improve further the predictive power of our model. 
+
+**We conclude that our linear regression model with the interaction terms is the best one to predict movements in prices.**
+
+# 3 Analyse the data to determine the factors that drive the renewal rate
+
+## 3.1. Create the logistic regression model
+
+### 3.1.1. Create the model
+
+We create a logistic regression model.
+
+```{r logistic regression}
+#create our logistic regression model
+log_reg_full <- glm(formula = renewed ~ age+
+                  price+
+                  car_value+
+                  years_of_no_claims_bonus+
+                  annual_mileage+
+                  years_of_tenure_with_current_provider+
+                  actual_change_in_price_vs_last_year+
+                  percent_change_in_price_vs_last_year+
+                  marital_status_d+
+                  marital_status_m+
+                  marital_status_s+
+                  marital_status_v+
+                  gender_f+
+                  gender_m+
+                  payment_method_annual+
+                  acquisition_channel_aggreg+
+                  acquisition_channel_direct+
+                  acquisition_channel_inbound,
+                data = insurance_data_dummied_short)
+summary(log_reg_full)
+
+#predict contract renewal using our logigistic regression model trained on the whole dataset
+predict_log_reg_full <- predict(log_reg_full, newdata = insurance_data_dummied_short, type ="response")
+predict_log_reg_full_df <- data.frame(predict_log_reg_full)
+
+#combine predicted and actual renewal rates to plot a ROC curve and assess the efficiency of our model
+renewed_from_full_sample <- data.frame(insurance_data_dummied_short$renewed)
+ROC_logreg_full <- cbind(renewed_from_full_sample,predict_log_reg_full_df)
+colnames(ROC_logreg_full) <- c("actual_renewed","predicted_renewed")
+
+#plot the ROC curve
+PRROC_obj <- roc.curve(scores.class0 = ROC_logreg_full$predicted_renewed, weights.class0=ROC_logreg_full$actual_renewed,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+We obtain an AUC of **0.652**, which means that our model performs better than a random classifier.
+
+### 3.1.2. Back-test the model
+
+```{r logistic regression test, cache = TRUE}
+#we now train our model on a sample of the dataset to back-test our logistic regression model (the same one we used for the backtesting of our linear regression models)
+log_reg_full_trained <- glm(formula = renewed ~ age+
+                  price+
+                  car_value+
+                  years_of_no_claims_bonus+
+                  annual_mileage+
+                  years_of_tenure_with_current_provider+
+                  actual_change_in_price_vs_last_year+
+                  percent_change_in_price_vs_last_year+
+                  marital_status_d+
+                  marital_status_m+
+                  marital_status_s+
+                  marital_status_v+
+                  gender_f+
+                  gender_m+
+                  payment_method_annual+
+                  acquisition_channel_aggreg+
+                  acquisition_channel_direct+
+                  acquisition_channel_inbound,
+                data = insurance_data_dummied_short_train)
+summary(log_reg_full_trained)
+
+#we then predict contract renewal on the testing dataset using our model trained on the training dataset
+predict_log_reg_test <- predict(log_reg_full_trained, newdata = insurance_data_dummied_short_test, type ="response")
+predict_log_reg_test_df <- data.frame(predict_log_reg_test)
+renewed_from_testing_sample <- data.frame(insurance_data_dummied_short_test$renewed)
+
+#we combine predicted and actual values of contract renewal
+ROC_logreg_test <- cbind(renewed_from_testing_sample,predict_log_reg_test_df)
+colnames(ROC_logreg_test) <- c("actual_renewed","predicted_renewed")
+
+#plot the curve
+PRROC_obj <- roc.curve(scores.class0 = ROC_logreg_test$predicted_renewed, weights.class0=ROC_logreg_test$actual_renewed,
+                       curve=TRUE)
+plot(PRROC_obj)
+```
+
+Our AUC is ***0.654*** when back-testing on 40% of the data, which is close to the AUC we obtained using the whole dataset to train our model. Therefore, we can conclude that our logistic regression performs significantly better than a random classifier.
+
+## 3.2. Determine the optimal cut-off point
+
+We know want to determine the best cut-off point to forecast renewal rates in a binary fashion. Among the several ways of doing this, we choose to use the Youden index (sensivity + specificity - 1), as we do not have any reason to favour sensivity over specificity (or the opposite). 
+
+```{r determining the optimal cut-off for our logistic regression model, cache = TRUE}
+
+#creatin a function to dynamically embed the confusion matrix results in the youden formula
+youden_function <- function(x){
+      predicted <- data.frame(ifelse(predict_log_reg_full_df > x, 1, 0))
+      actual <- data.frame(insurance_data_dummied_short$renewed)
+      colnames(actual) <- c("actual")
+      colnames(predicted) <- c("predicted")
+    confusion_matrix <- data.frame(table(actual$actual, predicted$predicted))
+youden(confusion_matrix[4,3],confusion_matrix[3,3],confusion_matrix[1,3],confusion_matrix[2,3])
+}
+
+#creating a loop to compute the youden index for different cut-off points
+youden_output <- character()          
+  for(i in seq(from=0, to=1, by=0.0125)) {             
+    print_youden <- youden_function(i)
+    youden_output <- c(youden_output, print_youden)    
+  }
+youden_output <- data.frame(as.numeric(youden_output))
+
+#creating a loop to store the cut-off increments used so as to plot them
+youden_increments <- character()          
+  for(i in seq(from=0, to=1, by=0.0125)) {             
+    print_increments <- i
+    youden_increments <- c(youden_increments, print_increments)    
+  }
+youden_increments <- data.frame(as.numeric(youden_increments))
+
+#creating a data frame with youden statistics and corresponding cut-off point increments
+youden_cutoffs <- cbind(youden_output,youden_increments)
+colnames(youden_cutoffs) <- c("youden","cut_off")
+
+#determine the maximum youden statistic and the corresponding cut-off point
+max_youden <- max(youden_cutoffs$youden)
+cut_off_for_max_youden <- youden_cutoffs$cut_off[youden_cutoffs$youden == max_youden]
+
+#plot our results
+ggplot(youden_cutoffs, aes(x = cut_off, y = youden))+
+  geom_line()+
+  theme_bw()+
+  geom_segment(aes(x = 0, y = max_youden, xend = cut_off_for_max_youden, yend = max_youden, colour="red"))+
+  geom_segment(aes(x = cut_off_for_max_youden, y = 0, xend = cut_off_for_max_youden, yend = max_youden, colour="blue"))+
+  labs(x="Cut-off",y="Youden's J Statistic",title="Youden's J Statistic vs. cut-off")+
+  scale_color_hue(labels = c("Cut-off for max. Youden (0.5625)", "Max. Youden (0.2177)"))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.title=element_blank())
+```
+
+The cut-off point for which the Youden Index is the highest is **0.5625**. 
+
+#4. Maximise profit and/or revenue by changing the price
+
+##4.1. Determine the prices that maximize revenue and profit
+
+###4.1.1. Investigating for clustering
+
+We now would like to find the prices that maximize respectively profit and revenue. To that end, we will use the logistic regression model with the cut-off point we determined to predict the renewal rate according to different price levels.
+
+First, we try to determine if your data can be clustered: maybe customer groups with different characteristics or habits can be determined. If such groups exist, they may have different sensivities to changes in price: we could then find the optimal 
+
+```{r cluster the data, cache=TRUE}
+
+#getting rid of the additional variables we added previously
+insurance_data_dummied_short_clustering <- insurance_data_dummied_short[,1:19]
+
+#compute within cluster sum of squared distances
+wss <- function(k) {
+  kmeans(insurance_data_dummied_short_clustering, k, nstart = 10 )$tot.withinss
+}
+
+#plot the sse by nu;ber of clusters between 1 and 15
+k.values <- 1:15
+  wss_values <- map_dbl(k.values, wss)
+  plot(k.values, wss_values,
+         type="b", pch = 19, frame = FALSE, 
+         xlab="Number of clusters K",
+         ylab="Total within-clusters sum of squares")
+
+#set number of clusters
+k2 <- kmeans(insurance_data_dummied_short_clustering, centers = 2, nstart = 25)
+k3 <- kmeans(insurance_data_dummied_short_clustering, centers = 3, nstart = 25)
+k4 <- kmeans(insurance_data_dummied_short_clustering, centers = 4, nstart = 25)
+k5 <- kmeans(insurance_data_dummied_short_clustering, centers = 5, nstart = 25)
+
+#create plots to compare clustering for different types of clusters
+p1 <- fviz_cluster(k2, geom = "point", data = insurance_data_dummied_short_clustering) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point",  data = insurance_data_dummied_short_clustering) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point",  data = insurance_data_dummied_short_clustering) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point",  data = insurance_data_dummied_short_clustering) + ggtitle("k = 5")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+#examine the distance to the center of the variables for each cluster
+res_kmeans <- cluster_analysis(insurance_data_dummied_short_clustering,
+                 n = 2,
+                 method = "kmeans")
+
+#plot the centers
+predict(res_kmeans)
+plot(summary(res_kmeans))
+```
+
+As we can see on the charts, there seems to be no cluster: they are all pretty similar and cover the same data points. It would thus be not relevant to cluster our data, as it would not improve our ability to determine the best prices to maximize revenue or profit.
+
+###4.1.2. Determining the prices that maximize revenue and profit
+
+Since no relevant clustering can be performed, we will examine how uniform changes in price affect contract renewal (demand). We proceed as follows:
+- We compute revenue as being the sum of the contracts' prices when they are renewed
+- We assume a cost per contract (variable cost), which is incurred only for renewed contracts
+- We assume fixed costs that are incurred by the insurance company
+- We examine the effect of uniform increases or decreases (i.e. we increase or increase all the prices by increment of 12.5bps).
+
+```{r determination of the prices that respectively maximize revenue and profit, cache=TRUE}
+#set our assumptions
+cost_per_contract = 200
+fixed_costs = 900000
+increment = 0.0125 #examining the effect of price changes by increment of 12.5 bps
+
+#compute actual revenue, profit and number of contracts sold
+insurance_data_dummied_short$next_y_revenue = insurance_data_dummied_short$price*insurance_data_dummied_short$renewed
+insurance_data_dummied_short$cost_per_contract = cost_per_contract
+insurance_data_dummied_short$next_y_profit = insurance_data_dummied_short$next_y_revenue - insurance_data_dummied_short$cost_per_contract*insurance_data_dummied_short$renewed
+next_year_revenue = sum(insurance_data_dummied_short$next_y_revenue)
+next_year_revenue <- round(next_year_revenue/1000, digits = 0)
+next_y_profit = sum(insurance_data_dummied_short$next_y_profit) - fixed_costs
+next_y_profit <- round(next_y_profit/1000, digits = 0)
+next_y_contracts_sold = sum(insurance_data_dummied_short$renewed)
+next_y_contracts_sold <- round(next_y_contracts_sold, digits = 0)
+
+#set new data frame to create our functions
+insurance_data_dummied_new <- insurance_data_dummied_short
+
+#create a function to predict the number of new contracts sold following changes in price
+contracts_sold <- function(x){
+  insurance_data_dummied_new$price <- insurance_data_dummied_new$price*(1+x)
+    predict_new <- data.frame(predict(log_reg_full, newdata = insurance_data_dummied_new, type ="response"))
+    colnames(predict_new) <- "prediction"
+    predict_new <- data.frame(ifelse(predict_new$prediction < cut_off_for_max_youden,0,1))
+    predict_new <- cbind(insurance_data_dummied_new$price,predict_new)
+    colnames(predict_new) <- c("price","renewed")
+  no_contract_sold = sum(predict_new$renewed)
+  no_contract_sold
+}
+
+#create a function to predict revenue following changes in price
+price_change <- function(x){
+  insurance_data_dummied_new$price <- insurance_data_dummied_new$price*(1+x)
+    predict_new <- data.frame(predict(log_reg_full, newdata = insurance_data_dummied_new, type ="response"))
+    colnames(predict_new) <- "prediction"
+    predict_new <- data.frame(ifelse(predict_new$prediction < cut_off_for_max_youden,0,1))
+    predict_new <- cbind(insurance_data_dummied_new$price,predict_new)
+    colnames(predict_new) <- c("price","renewed")
+    predict_new$next_y_revenue <- predict_new$price*predict_new$renewed
+  next_year_revenue_new = sum(predict_new$next_y_revenue)
+  next_year_revenue_new
+}
+
+#create function to predict change in profit following changes in price
+profit_change <- function(x){
+  insurance_data_dummied_new$price <- insurance_data_dummied_new$price*(1+x)
+    predict_new <- data.frame(predict(log_reg_full, newdata = insurance_data_dummied_new, type ="response"))
+    colnames(predict_new) <- "prediction"
+    predict_new <- data.frame(ifelse(predict_new$prediction < cut_off_for_max_youden,0,1))
+    predict_new <- cbind(insurance_data_dummied_new$price,predict_new)
+    colnames(predict_new) <- c("price","renewed")
+    predict_new$next_y_revenue <- predict_new$price*predict_new$renewed
+    predict_new$next_y_profit <- predict_new$price*predict_new$renewed - cost_per_contract*predict_new$renewed
+next_year_profit = sum(predict_new$next_y_profit) - fixed_costs
+next_year_profit
+}
+
+#create loop to predict number of new contracts following change in price using the function created before to that end
+no_contracts_sold <- character() 
+for(i in seq(from=-1, to=6, by=increment)) {             
+  no_contracts_sold_output <- contracts_sold(i)
+  no_contracts_sold <- c(no_contracts_sold, no_contracts_sold_output)    
+}
+no_contracts_sold <- data.frame(as.numeric(no_contracts_sold))
+
+#create loop to predict revenue following change in price using the function created before to that end
+price_change_output <- character() 
+for(i in seq(from=-1, to=6, by=increment)) {             
+  print_price_change <- price_change(i)
+  price_change_output <- c(price_change_output, print_price_change)    
+}
+price_change_output <- data.frame(as.numeric(price_change_output))
+
+#create loop to predict profit following change in price using the function created before to that end
+profit_change_output <- character() 
+for(i in seq(from=-1, to=6, by=increment)) {             
+  print_profit_change <- profit_change(i)
+  profit_change_output <- c(profit_change_output, print_profit_change)    
+}
+profit_change_output <- data.frame(as.numeric(profit_change_output))
+
+#create loop to print changes in price
+price_change_imcrement <- character() 
+for(i in seq(from=-1, to=6, by=increment)) {             
+  print_price_tics <- i
+  price_change_imcrement <- c(price_change_imcrement, print_price_tics)    
+}
+price_change_imcrement <- data.frame(as.numeric(price_change_imcrement))
+
+#create a table to compare revenue, profit and number of contracts sold per increment of price change
+forecast <- data.frame(cbind(price_change_imcrement,no_contracts_sold,price_change_output,profit_change_output))
+colnames(forecast) <- c("change_in_price","number_of_contracts_sold","Revenue","Profit")
+forecast$Revenue <- round(forecast$Revenue/1000, digits = 0)
+forecast$Profit <- round(forecast$Profit/1000, digits = 0)
+
+#save values of maximum revenue and corresponding price
+max_revenue <- max(forecast$Revenue)
+price_max_revenue <- forecast$change_in_price[forecast$Revenue == max_revenue]
+
+#save values of maximum profit and corresponding price
+max_profit <- max(forecast$Profit)
+price_max_profit <- forecast$change_in_price[forecast$Profit == max_profit]
+
+#save value of minimum profit and price and maximum price which will be the extrema of the lines of our plot
+min_profit <- min(forecast$Profit)
+min_price <- min(forecast$change_in_price)
+max_price <- max(forecast$change_in_price)
+
+#create the dynamic title of our chart
+fixed_costs_char <- prettyNum(fixed_costs,big.mark=",",scientific=FALSE)
+variable_costs_char <- prettyNum(fixed_costs,big.mark=",",scientific=FALSE)
+title_1 <- "Predicted revenue and profit vs. price change for \nfixed costs of £"
+title_2 <- "and cost per contract of £"
+title_full <- paste(title_1, fixed_costs_char, title_2, cost_per_contract)
+
+#create the dynamic legend for the predicted revenue segments of our chart
+max_revenue_1 <- "Maximum revenue of £"
+max_revenue_2 <- prettyNum(max_revenue,big.mark=",",scientific=FALSE)
+max_revenue_3 <- "K\nfor a price increase of"
+max_revenue_4 <- price_max_revenue*100
+max_revenue_5 <- "%"
+max_rev_full <- paste(max_revenue_1, max_revenue_2, max_revenue_3, max_revenue_4, max_revenue_5)
+
+#create the dynamic legend for the predicted profit segments of our chart
+max_profit_1 <- "Maximum profit of £"
+max_profit_2 <- prettyNum(max_profit, big.mark=",", scientific=FALSE)
+max_profit_3 <- "K\nfor a price increase of"
+max_profit_4 <- price_max_profit*100
+max_profit_5 <- "%"
+max_profit_full <- paste(max_profit_1, max_profit_2, max_profit_3, max_profit_4, max_profit_5)
+
+#create the dynamic legend for the actual revenue line of our chart
+actual_rev_1 <- "Actual revenue of £"
+actual_rev_2 <- prettyNum(next_year_revenue, big.mark=",", scientific=FALSE)
+actual_rev_3 <- "K"
+actual_rev_full <- paste(actual_rev_1, actual_rev_2, actual_rev_3)
+
+#create the dynamic legend for the actual profit line of our chart
+acual_profit_1 <- "Actual profit of £"
+acual_profit_2 <- prettyNum(next_y_profit, big.mark=",", scientific=FALSE)
+actual_profit_3 <- "K"
+actual_profit_full <- paste(acual_profit_1, acual_profit_2, actual_profit_3)
+
+#pivot our forecast table to plot to create our chart
+forecast_2 <- data_frame(forecast[,c("change_in_price","Revenue","Profit")])
+forecast_2 <- pivot_longer(forecast_2, !change_in_price, names_to = "effect", values_to = "values")
+
+#create our chart plotting predicted revenue and predicted profit for changes in price and actual revenue and actual profit for comparison
+ggplot(forecast_2, aes(y=values, x=change_in_price))+
+  geom_line(aes(color = effect), size = 1.15)+
+  geom_segment(aes(x = min_price, y = max_revenue, xend = price_max_revenue, yend = max_revenue, color = max_rev_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = price_max_revenue, y = min_profit, xend = price_max_revenue, yend = max_revenue, color = max_rev_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = min_price, y = max_profit, xend = price_max_profit, yend = max_profit, color = max_profit_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = price_max_profit, y = min_profit, xend = price_max_profit, yend = max_profit, color = max_profit_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = min_price, y = next_year_revenue, xend = max_price, yend = next_year_revenue, color = actual_rev_full), size = 1, linetype = 2)+
+  geom_segment(aes(x = min_price, y = next_y_profit, xend = max_price, yend = next_y_profit, color = actual_profit_full), size = 1, linetype = 2)+
+  scale_color_manual(values = c("#60B56D", "#9FA2DE", "#008614", "#030CD1", "#888897", "#53545E"))+
+  theme_classic()+
+  labs(title = c(title_full), y = "Amount ('000s £)", x = "Change in price ('00s %)" )+
+  theme(legend.title=element_blank())
+```
+According to our logistic regression model and our optimal cut-off point, assuming a cost per contract of **£200** and fixed costs of **£9,000K**:
+- A maximum revenue of **£5,494K** could be reached with a **30%** price increase, which would be a **12.8%** improvement over the current revenue of **£4,871K**
+- A maximum profit of **£2,280K** could be reached with a **48.75%** price increase, which would be a **53.74%** improvement over the current profit of **£1,483K**
+
+*Note: the actual revenue and profit lines do not intersect with the forecast curves and y = 0 because the curves correspond to forecast values that differ from the actual values.*
+
+##4.2. Examine the effects of price changes on volume and compute the elasticity of demand (renewal rate) to price
+
+We then examine the effect on demand of changes in price and determine the price elasticity of demand (contract renewal rate).
+
+```{r determine impact on volumes for prices obtained above, cache=TRUE}
+#create a table to plot the change in number of contract sold following changes in price
+forecast_3 <- data_frame(forecast[,c("change_in_price","number_of_contracts_sold")])
+
+#create a dynamic title for our chart
+title_no_contracts_1 <- "Predicted number of contracts sold vs. price change for\nfixed costs of £"
+title_no_contracts_2 <- "and cost per contract of £"
+title_no_contracts_full <- paste(title_no_contracts_1, fixed_costs_char, title_no_contracts_2, cost_per_contract)
+
+#print quantities for respectively the maximum revenue and maximum profit that can be obtained through changing the price according to our model
+qty_max_revenue <- forecast$number_of_contracts_sold[forecast$Revenue == max_revenue]
+qty_max_profit <- forecast$number_of_contracts_sold[forecast$Profit == max_profit]
+
+#create the dynamic legend for the predicted revenue segments of our chart
+qty_prof_max_1 <- "Maximum profit of £"
+qty_prof_max_2 <- prettyNum(max_profit,big.mark=",",scientific=FALSE)
+qty_prof_max_3 <- "K\nfor a number of contracts sold of"
+qty_prof_max_4 <- prettyNum(qty_max_profit,big.mark=",",scientific=FALSE)
+qty_prof_max_full <- paste(qty_prof_max_1, qty_prof_max_2, qty_prof_max_3, qty_prof_max_4)
+
+#create the dynamic legend for the predicted revenue segments of our chart
+qty_rev_max_1 <- "Maximum revenue of £"
+qty_rev_max_2 <- prettyNum(max_revenue,big.mark=",",scientific=FALSE)
+qty_rev_max_3 <- "K\nfor a number of contracts sold of"
+qty_rev_max_4 <- prettyNum(qty_max_revenue,big.mark=",",scientific=FALSE)
+qty_rev_max_full <- paste(qty_rev_max_1, qty_rev_max_2, qty_rev_max_3, qty_rev_max_4)
+
+#create the dynamic legend for the predicted revenue segments of our chart
+qty_act_1 <- "Actual number of contracts sold of"
+qty_act_2 <- prettyNum(next_y_contracts_sold,big.mark=",",scientific=FALSE)
+qty_act_full <- paste(qty_act_1, qty_act_2)
+
+#plot our chart showing the number of contracts sold for the prices which respectively maximize the revenue and the profit
+ggplot(forecast_3, aes(y=number_of_contracts_sold, x=change_in_price))+
+  geom_line(aes(color = "Number of contracts sold"), size = 1.15)+
+  geom_segment(aes(x = min_price, y = qty_max_revenue, xend = price_max_revenue, yend = qty_max_revenue, color = qty_rev_max_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = price_max_revenue, y = 0, xend = price_max_revenue, yend = qty_max_revenue, color = qty_rev_max_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = min_price, y = qty_max_profit, xend = price_max_profit, yend = qty_max_profit, color = qty_prof_max_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = price_max_profit, y = 0, xend = price_max_profit, yend = qty_max_profit, color = qty_prof_max_full), size = 1, linetype = 1)+
+  geom_segment(aes(x = min_price, y = next_y_contracts_sold, xend = max_price, yend = next_y_contracts_sold, color = qty_act_full), size = 1, linetype = 2)+
+  scale_color_manual(values = c("#E79292", "#008614", "#030CD1", "#53545E"))+
+  labs(title = c(title_no_contracts_full), y = "Number of contracts sold", x = "Change in price ('00s %)" )+
+  theme_classic()+
+  theme(legend.title=element_blank())
+```
+
+We can observe that maximizing revenue through a **30%** price increase would reduce the number of contract renewed by **3.64%**, whereas maximizing profit through a **48.75%** price increase would reduce it by **13.95%**.
+
+We then fit a curve to our forecast of the number of contracts renewed vs. price changes, so as to determine a demand function with which we will determine the price elasticity of demand.
+
+```{r curve fitting on our forecast of the number of contracts renewed, cache = TRUE}
+
+#create different fitting curves
+cont_1 <- lm(number_of_contracts_sold ~ poly(change_in_price, 1, raw = TRUE), forecast_3)
+cont_2 <- lm(number_of_contracts_sold ~ poly(change_in_price, 2, raw = TRUE), forecast_3)
+cont_3 <- lm(number_of_contracts_sold ~ poly(change_in_price, 3, raw = TRUE), forecast_3)
+cont_4 <- lm(number_of_contracts_sold ~ poly(change_in_price, 4, raw = TRUE), forecast_3)
+
+#store the curves values in dataset
+pred_cont_1 <- data.frame(predict(cont_1, newdata = forecast_3))
+pred_cont_2 <- data.frame(predict(cont_2, newdata = forecast_3))
+pred_cont_3 <- data.frame(predict(cont_3, newdata = forecast_3))
+pred_cont_4 <- data.frame(predict(cont_4, newdata = forecast_3))
+colnames(pred_cont_1) <- "fit_no_contracts_sold_1"
+colnames(pred_cont_2) <- "fit_no_contracts_sold_2"
+colnames(pred_cont_3) <- "fit_no_contracts_sold_3"
+colnames(pred_cont_4) <- "fit_no_contracts_sold_4"
+
+#compare the values of our fitting curves to the values of our forecast
+pred_cont_full <- data.frame(cbind(forecast_3$change_in_price, 
+                                   forecast_3$number_of_contracts_sold, 
+                                   pred_cont_1$fit_no_contracts_sold_1,
+                                   pred_cont_2$fit_no_contracts_sold_2,
+                                   pred_cont_3$fit_no_contracts_sold_3,
+                                   pred_cont_4$fit_no_contracts_sold_4))
+colnames(pred_cont_full) <- c("price_change", "Actual", "Linear", "Quadratic", "Cubic", "Quartic")
+pred_cont_full <- pivot_longer(pred_cont_full, !price_change, names_to = "type", values_to = "values")
+
+#plot our forecast and the associated values
+ggplot(pred_cont_full, aes(x = price_change, y = values, color = type))+
+  geom_line(aes(color = type))+
+  scale_linetype_manual(values = c("test" = 2, "dashed" = 1, "#dashed" = 1, "dashed" = 1, "dashed" = 1))+
+  labs(title = "Prediction of number of contract sold vs. fitting curves", y = "Number of contracts sold", x = "Change in price ('00s %)" )+
+  theme_classic()+
+  theme(legend.title=element_blank())
+summary(cont_2)
+
+#create a demand function based on the coefficients of our second fitting curve
+demand_function <- function(x) {13049.828 - 5993.117*x + 669.165 * x ^2}
+
+#compute the price-elasticity of demand
+no_price_change_demand <- demand_function(0)
+plus_one_percent_demand <- demand_function(0.01)
+minus_one_percent_demand <- demand_function(-0.01)
+price_increase_impact <- ((plus_one_percent_demand - no_price_change_demand)/no_price_change_demand)/0.01
+price_decrease_impact <- ((minus_one_percent_demand - no_price_change_demand)/no_price_change_demand)/-0.01
+elast_price_inc <- price_increase_impact
+elast_price_desc <- price_decrease_impact
+elast_price_inc
+elast_price_desc
+```
+
+We can see from the chart that a quadratic equation is good enough to create a fitting demand function. We use this demand function to compute the price elasticity of demand, and we find that it is **-0.4587** for a 1% price increase and **-0.4597** for a 1% price decrease from our current price. This means that demand is relatively inelastic to price (|price elasticity of demand| < 1).

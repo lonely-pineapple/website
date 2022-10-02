@@ -1,0 +1,13 @@
+---
+title: "Time series statistical analysis"
+author: "Hadrien Pistre"
+date: 2022-04-11T21:13:14-05:00
+categories: ["Statistical Analyses"]
+tags: ["Time series", "Volatility", "Statistics", "Regime switching", "EViews"]
+---
+
+Below is a statistical analysis I did of the [Liv-ex Fine Wine 100 index](https://www.liv-ex.com/news-insights/indices/) using the software [EViews](https://www.eviews.com/home.html):
+
+Click [here](https://www.hadrienpistre.com/time_series_liv_ex_benchmark.pdf) to view the analysis.
+
+
