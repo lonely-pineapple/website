@@ -3,7 +3,7 @@ title: "Price optimisation"
 author: "Hadrien Pistre"
 date: 2022-10-02
 categories: ["R Projects"]
-tags: ["R", "Logistic regression", "Linear regression", "Loan default prediction"]
+tags: ["R", "Logistic regression", "Linear regression", "Price optimisation"]
 ---
 
 I performed this analysis on a dataset containing fictitious information about car insurance customers.
@@ -13,6 +13,52 @@ I performed this analysis on a dataset containing fictitious information about c
 
 ```{r setup, cache=TRUE, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r hidden library, cache=TRUE, echo=FALSE, results='hide'}
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(qpcR)
+library(fastDummies)
+library(janitor)
+library(kableExtra)
+library(GGally)
+library(huxtable)
+library(caret)
+library(PRROC)
+library(ROCR)
+library(cutpointr)
+library(factoextra)
+library(gridExtra)
+library(cluster)
+
+library(rsample)     
+library(dplyr)       
+library(rpart)       
+library(rpart.plot)  
+library(ipred)       
+library(caret)       
+library(randomForest)
+library(tidyverse)  
+library(fastDummies)
+library(readxl)
+library(janitor)
+library(e1071)
+library(caTools)
+library(class)
+library(tokenizers)
+library(tidytext)
+library(PRROC)
+library(lubridate)
+library(writexl)
+library(ggthemes)
+library(GGally)
+library(factoextra)
+library(cluster)
+library(gridExtra)
+library(parameters)
+library(see)
 ```
 
 **Used packages:**
@@ -32,7 +78,9 @@ library(ROCR)
 library(cutpointr)
 library(factoextra)
 library(gridExtra)
+library(cluster)
 ```
+
 
 # 1. Exploring the data
 
