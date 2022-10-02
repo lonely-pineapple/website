@@ -11,81 +11,33 @@ tags: ["R", "Clustering", "Linear regression", "Logistic regression"]
 <p>I performed this analysis on a dataset containing information about users of <a href="https://www.bbc.co.uk/iplayer">BBC’s iPLAYER</a> streaming service. This analysis was done during the elective “Data Mining for Business Intelligence” at <a href="https://www.london.edu/">London Business School</a> taught by <a href="https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n">Prof. Nicos Savva</a>, <a href="https://www.london.edu/faculty-and-research/faculty-profiles/k/kostis-christodoulou">Prof. Kostis Christodoulou</a> and <a href="https://www.london.edu/faculty-and-research/faculty-profiles/e/ekaterina-abramova">Prof. Ekaterina Abramova</a>.</p>
 <p><img src="https://www.hadrienpistre.com/bbc.jpg" alt="bbc" />
 <em>Image source: <a href="https://dla-architecture.co.uk/projects/bbc-building-leeds/" class="uri">https://dla-architecture.co.uk/projects/bbc-building-leeds/</a></em></p>
-<pre><code>## 
-## Attaching package: &#39;dplyr&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:stats&#39;:
-## 
-##     filter, lag</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     intersect, setdiff, setequal, union</code></pre>
-<pre><code>## Loading required package: ggplot2</code></pre>
-<pre><code>## Loading required package: lattice</code></pre>
-<pre><code>## randomForest 4.7-1</code></pre>
-<pre><code>## Type rfNews() to see new features/changes/bug fixes.</code></pre>
-<pre><code>## 
-## Attaching package: &#39;randomForest&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
-## 
-##     margin</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     combine</code></pre>
-<pre><code>## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --</code></pre>
-<pre><code>## v tibble  3.1.6     v purrr   0.3.4
-## v tidyr   1.2.0     v stringr 1.4.1
-## v readr   2.1.2     v forcats 0.5.1</code></pre>
-<pre><code>## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
-## x randomForest::combine() masks dplyr::combine()
-## x dplyr::filter()         masks stats::filter()
-## x dplyr::lag()            masks stats::lag()
-## x purrr::lift()           masks caret::lift()
-## x randomForest::margin()  masks ggplot2::margin()</code></pre>
-<pre><code>## 
-## Attaching package: &#39;janitor&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:stats&#39;:
-## 
-##     chisq.test, fisher.test</code></pre>
-<pre><code>## 
-## Attaching package: &#39;e1071&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:rsample&#39;:
-## 
-##     permutations</code></pre>
-<pre><code>## 
-## Attaching package: &#39;lubridate&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:base&#39;:
-## 
-##     date, intersect, setdiff, union</code></pre>
-<pre><code>## Registered S3 method overwritten by &#39;GGally&#39;:
-##   method from   
-##   +.gg   ggplot2</code></pre>
-<pre><code>## Welcome! Want to learn more? See two factoextra-related books at https://goo.gl/ve3WBa</code></pre>
-<pre><code>## 
-## Attaching package: &#39;gridExtra&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:randomForest&#39;:
-## 
-##     combine</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     combine</code></pre>
-<pre><code>## Registered S3 method overwritten by &#39;parameters&#39;:
-##   method                         from      
-##   format.parameters_distribution datawizard</code></pre>
-<pre><code>## 
-## Attaching package: &#39;parameters&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:e1071&#39;:
-## 
-##     kurtosis</code></pre>
-<pre><code>## The following object is masked from &#39;package:caret&#39;:
-## 
-##     compare_models</code></pre>
-<pre><code>## Loading required package: NLP</code></pre>
-<pre><code>## 
-## Attaching package: &#39;NLP&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:ggplot2&#39;:
-## 
-##     annotate</code></pre>
-<pre><code>## Loading required package: RColorBrewer</code></pre>
+<p><strong>Used packages:</strong></p>
+<pre class="r"><code>library(rsample)     
+library(dplyr)       
+library(rpart)       
+library(rpart.plot)  
+library(ipred)       
+library(caret)       
+library(randomForest)
+library(tidyverse)  
+library(fastDummies)
+library(readxl)
+library(janitor)
+library(e1071)
+library(caTools)
+library(class)
+library(tokenizers)
+library(tidytext)
+library(PRROC)
+library(lubridate)
+library(writexl)
+library(ggthemes)
+library(GGally)
+library(factoextra)
+library(cluster)
+library(gridExtra)
+library(parameters)
+library(see)</code></pre>
 <div id="data-cleaning" class="section level2">
 <h2>0. Data cleaning</h2>
 <pre class="r"><code>#load the data from lending club
@@ -536,13 +488,12 @@ wss &lt;- function(k) {
 #plot the sse by nu;ber of clusters between 1 and 15
 k.values &lt;- 1:15
 
-wss_values &lt;- map_dbl(k.values, wss)
-
-plot(k.values, wss_values,
+wss_values &lt;- map_dbl(k.values, wss)</code></pre>
+<pre class="r"><code>plot(k.values, wss_values,
        type=&quot;b&quot;, pch = 19, frame = FALSE, 
        xlab=&quot;Number of clusters K&quot;,
        ylab=&quot;Total within-clusters sum of squares&quot;)</code></pre>
-<p><img src="/projects/clustering_files/figure-html/sse%20within%20cluster%20by%20number%20of%20cluster-1.png" width="672" /></p>
+<p><img src="/projects/clustering_files/figure-html/plot%20of%20sse-1.png" width="672" /></p>
 <pre class="r"><code>#set number of clusters
 k2 &lt;- kmeans(proportions_for_clustering, centers = 3, nstart = 25)
 k3 &lt;- kmeans(proportions_for_clustering, centers = 4, nstart = 25)
@@ -564,131 +515,11 @@ res_kmeans &lt;- cluster_analysis(proportions_for_clustering,
                  n = 5,
                  method = &quot;kmeans&quot;)
 
-#plot the centers
+#compute the centers
 predict(res_kmeans)</code></pre>
-<pre><code>##    [1] 2 2 1 1 3 1 2 2 2 2 2 2 2 4 4 1 1 4 2 2 1 2 1 2 1 2 2 2 2 4 2 4 1 1 2 1 1
-##   [38] 2 1 4 1 1 1 2 2 2 4 2 1 4 4 2 1 1 2 1 1 1 2 4 1 2 1 1 2 2 1 1 5 2 4 5 4 1
-##   [75] 2 5 2 1 2 2 1 2 4 2 1 2 2 1 1 1 2 5 1 1 5 2 2 2 1 2 1 1 2 4 1 2 5 1 1 2 1
-##  [112] 1 2 2 2 1 1 1 2 1 5 2 4 4 4 2 1 2 1 4 1 2 1 2 2 4 4 2 4 2 1 1 1 2 2 1 2 2
-##  [149] 4 1 1 1 2 2 1 1 2 2 2 1 1 2 4 1 1 2 1 1 4 2 2 4 1 1 1 2 1 2 2 5 4 1 4 2 2
-##  [186] 4 1 1 2 2 1 2 2 2 1 4 2 4 1 1 2 1 1 4 1 2 2 2 1 1 1 1 2 1 1 4 4 5 1 2 2 1
-##  [223] 1 1 2 1 1 1 1 4 2 4 2 1 2 1 1 2 2 1 2 1 1 2 1 2 2 2 4 2 4 1 2 1 2 1 2 2 2
-##  [260] 4 1 2 4 1 4 1 2 1 2 2 1 4 2 2 2 2 1 2 2 2 1 2 1 5 2 4 1 2 1 1 1 2 2 4 2 2
-##  [297] 4 1 2 1 2 2 1 2 4 5 2 2 2 2 4 2 1 1 2 2 2 1 1 1 1 2 2 1 1 2 1 1 1 2 2 2 1
-##  [334] 1 2 1 1 2 2 2 2 4 2 1 4 2 4 4 1 2 4 4 1 2 4 2 4 2 2 2 2 1 2 2 4 1 2 2 1 2
-##  [371] 1 1 1 2 2 4 2 1 1 5 2 1 4 1 4 4 1 4 5 1 1 1 2 1 1 2 1 1 2 2 2 1 4 2 2 2 1
-##  [408] 1 2 4 1 2 2 4 2 1 1 2 4 4 1 1 1 1 2 1 1 2 1 1 1 4 1 2 1 1 1 4 1 2 1 1 2 2
-##  [445] 5 1 4 1 2 2 1 2 4 1 2 1 2 2 1 2 4 1 2 2 1 1 2 1 2 4 2 1 2 1 2 1 5 1 1 2 1
-##  [482] 1 1 4 4 4 2 1 2 2 2 2 4 1 4 2 1 2 2 2 2 2 1 2 2 4 2 1 1 2 2 2 1 4 4 2 5 4
-##  [519] 2 2 4 1 2 1 1 5 2 1 1 2 1 2 2 2 4 4 1 2 2 1 1 2 2 1 2 2 1 4 1 1 2 2 2 1 1
-##  [556] 2 2 2 2 2 2 2 2 1 2 1 1 1 1 2 1 1 2 1 1 1 4 1 2 4 5 2 2 2 4 1 2 1 2 1 1 4
-##  [593] 2 2 1 4 1 1 4 1 2 4 1 1 1 4 1 5 2 1 2 5 1 1 2 4 1 1 2 2 5 2 2 1 1 2 1 1 2
-##  [630] 1 1 1 1 2 4 4 1 2 1 2 1 4 2 1 2 2 1 1 1 2 2 1 4 1 2 2 2 4 1 1 1 1 2 5 5 2
-##  [667] 2 2 4 1 1 1 1 1 4 4 2 4 2 2 1 1 4 2 1 2 2 2 1 1 2 2 1 1 1 2 2 4 4 5 2 2 4
-##  [704] 2 1 4 2 1 1 2 1 2 4 1 2 2 4 2 2 1 2 2 1 4 2 2 2 4 2 1 4 2 1 1 1 1 2 1 1 1
-##  [741] 1 1 4 2 1 1 2 3 2 4 2 2 1 2 2 2 2 1 2 1 2 1 1 1 1 1 2 2 1 1 1 1 1 1 1 3 1
-##  [778] 2 2 2 1 2 1 1 2 2 1 2 1 1 4 4 1 5 2 2 1 1 4 4 1 1 2 4 1 1 2 4 3 1 1 4 1 2
-##  [815] 4 1 1 4 1 1 4 3 2 5 1 4 1 1 1 5 1 2 2 1 1 2 2 2 4 1 1 2 4 2 1 2 2 1 1 2 4
-##  [852] 1 4 3 2 1 1 2 1 2 1 1 2 1 1 1 1 1 2 4 4 1 1 2 2 2 2 1 2 2 1 1 4 2 1 2 2 1
-##  [889] 1 1 2 4 2 1 1 1 1 1 1 1 1 2 1 1 2 2 2 2 1 1 2 2 1 1 2 4 1 4 1 5 4 2 2 1 1
-##  [926] 2 4 2 2 2 2 1 1 1 1 2 1 2 5 2 1 1 2 1 1 2 2 1 1 4 2 2 5 2 4 1 2 4 2 1 1 5
-##  [963] 1 2 1 2 5 2 2 4 2 2 2 1 1 2 1 2 4 2 2 1 1 1 3 1 2 4 2 2 2 4 2 1 1 2 3 1 1
-## [1000] 2 2 2 1 4 1 1 2 1 2 2 4 1 2 2 4 1 4 4 2 4 1 1 2 4 1 2 1 4 2 1 2 4 4 4 2 2
-## [1037] 2 2 2 1 1 1 1 2 1 4 4 4 2 4 1 2 1 1 2 1 2 1 2 4 5 2 2 2 1 2 1 1 5 2 3 4 1
-## [1074] 4 1 1 4 2 1 2 1 5 2 4 4 1 1 1 3 2 1 2 4 1 2 3 2 2 2 4 2 2 2 1 2 2 2 1 2 2
-## [1111] 1 2 3 2 4 1 1 3 2 3 1 2 2 1 4 4 1 1 1 2 4 2 2 2 5 1 1 1 2 2 5 2 2 1 2 1 4
-## [1148] 5 2 4 2 1 4 1 2 2 4 1 4 2 2 1 1 1 2 4 2 2 1 1 2 2 1 1 1 2 2 2 2 1 4 2 2 1
-## [1185] 2 1 2 2 2 4 1 1 1 2 2 4 2 2 2 1 1 2 2 1 2 2 1 5 1 1 4 1 1 1 1 1 2 2 3 2 2
-## [1222] 2 2 1 1 4 2 1 1 2 1 2 2 1 1 2 1 1 2 1 2 1 1 1 1 1 1 1 1 2 1 1 1 2 3 1 2 1
-## [1259] 1 4 2 4 4 4 2 4 2 4 1 1 3 2 1 2 2 4 1 1 2 1 4 1 4 5 2 1 1 2 2 1 1 5 1 2 2
-## [1296] 1 4 1 1 1 4 1 2 2 2 1 1 2 2 2 1 1 1 2 1 2 2 2 4 2 2 1 2 1 1 4 4 1 1 1 2 4
-## [1333] 3 2 1 2 2 1 2 2 1 4 5 2 4 2 1 1 1 1 1 4 2 2 5 1 2 1 1 2 1 1 4 2 4 4 4 1 1
-## [1370] 1 4 4 2 1 2 2 2 2 1 4 1 2 1 4 2 1 2 4 2 2 1 1 4 2 1 2 1 2 2 5 2 4 1 1 1 1
-## [1407] 1 2 2 2 2 1 2 1 2 2 1 2 1 3 2 4 1 2 2 5 2 1 1 2 2 2 2 1 2 1 1 1 1 1 1 2 2
-## [1444] 2 4 2 4 2 1 1 1 4 5 2 2 1 4 2 4 2 4 2 2 4 2 1 2 1 1 2 2 4 2 1 2 1 2 2 2 1
-## [1481] 1 4 2 3 2 1 2 4 1 4 2 3 2 2 4 5 2 2 1 1 2 2 1 1 2 2 2 2 1 1 2 1 2 1 2 4 1
-## [1518] 1 1 4 4 1 2 2 2 1 1 1 4 1 2 1 2 4 2 1 1 2 2 2 2 1 4 2 1 2 2 2 2 1 2 4 2 2
-## [1555] 1 1 1 1 1 1 2 2 1 2 1 4 4 1 1 4 3 2 4 2 2 2 2 1 1 2 2 2 4 1 4 1 1 1 4 1 1
-## [1592] 4 2 1 1 3 1 1 2 2 4 1 1 4 2 1 2 1 4 1 5 2 2 1 4 4 3 5 2 1 2 1 2 2 4 1 4 1
-## [1629] 2 1 2 2 1 4 4 1 1 1 1 2 2 2 2 5 1 2 2 2 1 1 1 4 2 2 1 2 1 4 1 4 5 4 1 2 1
-## [1666] 2 1 1 2 2 1 1 1 1 2 2 2 1 2 4 4 2 2 2 1 1 2 1 1 2 1 2 2 1 1 2 3 1 2 2 1 5
-## [1703] 2 2 2 5 4 4 2 1 2 1 4 1 2 1 4 1 4 2 4 2 1 1 2 2 2 1 4 2 2 4 1 2 2 4 1 1 2
-## [1740] 2 4 1 1 4 2 4 2 1 1 1 2 1 1 1 2 2 1 2 1 1 4 2 1 2 2 2 2 1 1 2 1 2 2 1 2 1
-## [1777] 1 3 1 1 2 1 2 1 2 1 4 1 1 2 2 2 2 2 4 2 1 1 2 2 2 2 2 1 2 1 4 2 4 4 5 1 1
-## [1814] 1 1 2 1 2 5 1 4 2 4 2 1 2 2 2 2 2 2 1 1 2 1 1 2 4 2 5 2 2 2 1 2 2 1 2 2 1
-## [1851] 4 2 1 1 2 2 2 4 1 5 1 2 2 2 1 1 2 2 4 1 2 1 4 1 3 1 4 2 2 1 1 2 2 4 4 2 2
-## [1888] 4 4 1 1 1 2 1 1 1 4 1 1 2 1 1 5 3 2 1 2 2 1 1 2 4 1 4 2 2 1 2 5 1 1 1 4 4
-## [1925] 2 1 4 1 2 2 1 5 4 2 2 2 2 2 2 1 2 2 2 4 2 1 2 1 2 4 2 1 1 1 2 2 1 1 1 4 1
-## [1962] 4 4 1 1 4 1 1 1 4 4 2 1 4 2 4 1 5 1 2 2 2 1 1 2 4 1 2 1 1 2 2 1 2 5 2 2 2
-## [1999] 1 1 3 2 2 2 1 2 1 1 1 1 4 1 2 2 2 2 1 4 1 1 2 2 2 2 2 5 2 1 2 2 2 2 1 1 2
-## [2036] 1 1 1 1 1 1 1 1 2 2 2 2 2 1 1 2 2 1 2 2 2 2 2 2 1 2 4 1 1 5 5 4 1 2 3 1 1
-## [2073] 1 1 2 2 2 1 2 2 2 2 2 1 2 4 4 4 2 5 2 2 2 2 1 4 2 2 5 1 1 1 2 4 1 4 2 5 2
-## [2110] 2 1 2 1 4 2 2 2 2 4 2 4 1 2 1 1 1 1 2 1 2 1 2 1 1 1 4 4 1 4 2 1 5 1 2 2 2
-## [2147] 4 1 1 4 2 1 1 2 2 2 2 1 1 4 2 1 2 2 1 2 4 4 2 2 2 1 1 1 1 2 1 2 3 2 4 2 2
-## [2184] 2 1 2 1 2 1 4 1 4 4 2 2 4 2 1 4 1 2 2 2 2 2 2 1 2 2 2 1 1 1 1 1 4 2 2 2 1
-## [2221] 2 4 1 4 2 1 3 1 1 3 2 2 1 2 4 4 1 3 2 2 2 2 2 1 4 1 1 1 5 5 2 2 1 2 2 1 1
-## [2258] 2 1 1 4 4 2 1 2 1 2 1 1 2 2 1 1 2 2 2 2 4 1 2 2 5 4 1 2 4 1 2 1 1 2 2 2 2
-## [2295] 1 4 2 1 1 1 1 3 4 1 2 1 4 1 1 1 2 2 1 1 2 2 4 1 2 2 1 1 2 2 4 1 2 1 1 1 1
-## [2332] 1 2 2 1 2 4 1 4 2 2 4 1 1 2 2 2 4 4 1 2 1 4 1 2 1 1 2 2 2 2 1 2 4 1 1 2 1
-## [2369] 2 1 1 1 1 1 2 2 1 2 1 2 1 1 1 4 2 2 1 4 5 2 2 2 2 1 1 1 1 1 2 1 4 1 4 5 2
-## [2406] 2 2 1 2 2 2 4 4 2 2 4 5 4 1 5 1 1 1 1 2 2 2 1 2 2 3 5 2 2 1 1 4 2 2 2 1 2
-## [2443] 2 2 1 1 2 5 2 2 2 2 1 4 4 3 1 2 2 2 1 4 1 1 2 1 2 1 2 2 2 3 1 1 1 2 1 1 1
-## [2480] 2 1 1 2 4 1 2 1 1 2 2 2 2 4 2 4 4 2 2 1 1 2 2 2 4 2 2 1 1 5 2 2 2 1 2 2 4
-## [2517] 1 1 1 1 2 1 2 2 4 1 4 1 1 1 1 2 5 2 1 2 2 2 1 1 2 2 2 4 2 1 1 2 1 1 1 1 5
-## [2554] 5 4 2 2 1 1 1 5 2 2 4 1 1 2 1 1 4 2 2 2 2 2 4 4 1 2 2 1 1 4 1 1 1 1 2 2 4
-## [2591] 1 1 1 2 1 2 1 2 1 1 2 1 1 2 2 3 1 2 2 1 2 1 1 2 2 4 1 1 4 1 2 2 2 2 1 2 1
-## [2628] 1 2 2 2 4 2 1 2 1 2 4 2 1 2 2 1 1 2 4 1 5 2 1 1 1 1 1 1 1 2 2 1 2 2 1 2 1
-## [2665] 3 2 2 2 1 1 2 1 2 2 4 4 2 2 2 2 1 1 2 2 2 4 1 1 1 2 1 1 2 2 1 1 1 2 2 1 2
-## [2702] 2 2 2 1 1 2 2 4 2 5 4 3 1 2 2 2 2 1 1 3 4 2 4 4 2 1 1 1 1 2 2 1 2 2 2 4 2
-## [2739] 1 4 1 2 2 2 1 1 4 4 1 4 2 1 2 2 1 2 2 2 2 2 4 4 2 2 1 1 2 2 1 1 2 2 2 2 4
-## [2776] 1 2 2 2 1 1 4 2 1 2 2 1 2 2 2 2 2 2 4 1 2 2 1 1 2 1 1 2 1 4 1 1 5 1 1 2 1
-## [2813] 1 4 2 2 4 1 4 1 2 2 4 2 2 2 4 4 1 1 4 2 1 1 1 2 1 2 1 1 2 1 2 4 1 2 2 1 1
-## [2850] 2 2 2 1 1 1 2 4 1 2 4 2 2 2 4 4 2 1 2 1 2 1 1 2 1 2 1 5 1 1 1 2 1 1 2 4 2
-## [2887] 1 5 2 2 1 2 2 4 1 2 5 2 2 2 1 2 1 4 1 5 1 2 2 4 1 2 5 4 1 2 1 4 1 1 1 1 2
-## [2924] 2 2 1 1 4 2 1 4 2 1 1 2 1 4 2 1 3 5 2 1 1 4 1 2 2 1 1 1 5 2 4 2 1 1 2 1 2
-## [2961] 2 2 2 1 1 2 1 4 1 1 2 2 2 2 2 2 2 2 4 1 4 2 4 1 1 1 3 2 2 1 4 1 1 1 2 1 1
-## [2998] 2 2 1 4 2 1 2 1 1 2 1 1 2 1 5 1 1 1 2 2 1 1 4 4 5 1 1 1 1 2 2 1 1 2 1 4 2
-## [3035] 4 1 2 1 2 1 2 1 1 1 1 4 2 2 1 1 2 1 2 1 2 1 3 2 2 5 1 1 1 1 1 1 2 2 2 1 1
-## [3072] 2 4 3 3 1 1 1 2 2 1 1 2 1 5 2 2 1 5 2 1 1 1 2 2 1 1 1 2 1 1 1 2 2 4 1 4 2
-## [3109] 4 4 2 1 4 2 3 1 2 2 2 1 4 1 2 1 2 1 2 2 2 1 2 2 2 1 1 2 2 5 2 4 2 4 1 2 1
-## [3146] 2 1 1 1 2 2 2 4 2 1 2 2 2 2 2 2 2 2 2 1 2 2 1 4 2 4 1 2 1 2 1 2 2 4 4 2 2
-## [3183] 4 2 2 1 1 1 1 4 2 2 1 4 2 1 1 2 2 2 1 4 2 1 5 1 2 1 1 4 2 2 4 2 1 1 2 1 2
-## [3220] 1 2 1 1 1 2 3 2 4 1 4 2 2 2 2 2 1 2 2 4 1 2 2 2 1 4 2 2 4 1 1 1 1 2 2 2 3
-## [3257] 2 1 1 2 2 2 2 4 2 2 1 2 1 2 1 2 4 1 2 1 1 1 5 1 1 2 1 1 1 4 2 2 2 4 2 4 5
-## [3294] 4 1 2 1 2 1 5 1 1 2 2 1 2 2 4 2 1 1 2 1 1 4 2 2 2 2 2 2 2 2 1 2 2 2 2 1 2
-## [3331] 1 1 2 1 2 2 2 2 1 1 2 2 2 2 2 1 1 2 1 1 1 4 2 1 4 2 2 1 1 4 2 2 4 2 1 2 1
-## [3368] 2 2 4 2 2 1 1 4 2 1 2 2 1 1 1 2 1 1 1 2 4 2 1 2 2 1 1 4 5 2 1 1 3 2 1 3 1
-## [3405] 2 2 4 2 5 4 2 2 1 2 2 1 1 2 2 5 2 1 2 5 1 4 1 4 2 4 3 2 2 1 5 2 2 1 2 1 1
-## [3442] 2 1 4 2 1 1 1 1 2 2 2 4 1 2 2 1 1 2 1 1 1 3 5 1 2 4 1 2 1 2 2 1 2 2 1 5 2
-## [3479] 4 4 1 1 1 2 2 1 5 2 4 2 1 2 5 2 1 4 1 1 2 4 4 1 1 2 2 3 2 1 2 4 2 1 1 1 2
-## [3516] 4 1 1 1 2 2 2 5 4 4 2 1 4 1 2 1 4 1 2 4 1 2 2 2 2 4 2 1 2 1 4 2 3 4 2 1 1
-## [3553] 2 1 2 2 4 2 1 1 2 4 2 4 4 4 1 2 1 2 1 4 1 2 2 1 2 2 2 4 4 5 2 2 1 2 1 4 2
-## [3590] 2 1 1 2 2 1 2 1 2 1 2 1 4 1 5 1 2 1 1 2 2 1 2 2 2 1 4 2 1 2 2 1 4 1 1 2 2
-## [3627] 1 1 1 1 2 1 2 1 2 5 1 2 1 1 2 1 2 2 1 4 2 2 2 1 1 4 1 1 4 2 1 2 2 1 2 1 4
-## [3664] 4 1 2 1 1 2 2 1 1 4 2 2 1 1 1 2 1 2 2 1 4 1 1 1 2 1 2 1 2 1 1 2 4 1 2 1 1
-## [3701] 4 1 4 1 1 2 2 5 5 1 1 1 2 4 1 5 2 1 1 4 1 1 2 2 1 2 1 2 2 2 1 1 1 1 1 1 1
-## [3738] 2 1 1 2 2 1 4 2 2 2 1 2 2 2 1 4 1 1 2 1 2 1 1 1 4 1 1 1 1 2 1 2 1 1 1 2 2
-## [3775] 2 5 2 2 4 2 1 1 2 4 1 1 2 2 4 1 1 1 1 4 2 2 2 2 2 1 4 2 1 2 4 4 2 2 5 1 2
-## [3812] 1 2 4 1 1 2 2 1 2 2 1 1 4 2 1 4 4 1 4 2 2 5 2 2 4 2 3 1 2 2 1 1 4 4 2 2 1
-## [3849] 1 2 2 2 3 1 2 1 4 1 2 1 5 4 1 1 1 4 4 2 2 1 2 3 2 2 2 4 2 2 1 1 4 2 1 4 2
-## [3886] 4 1 1 4 1 2 4 2 1 2 1 3 2 2 1 2 3 2 2 2 2 5 4 2 2 1 1 2 2 2 2 1 2 2 2 1 1
-## [3923] 2 1 1 2 1 2 4 1 2 1 1 2 2 2 2 2 2 4 2 1 4 1 2 1 1 2 2 4 2 2 2 1 1 2 2 2 1
-## [3960] 2 1 2 4 1 2 2 2 2 2 2 1 2 1 1 2 4 2 1 1 1 5 2 1 1 4 1 5 1 2 2 2 2 1 2 5 2
-## [3997] 2 1 1 2 1 1 2 5 1 2 5 2 1 1 2 4 2 2 1 1 1 2 2 1 2 2 1 2 4 2 1 2 2 4 1 2 1
-## [4034] 1 1 2 1 1 1 2 2 5 2 1 1 4 5 2 1 1 1 2 1 4 2 2 2 1 1 2 2 4 1 2 1 2 1 4 1 4
-## [4071] 2 2 4 1 1 2 2 1 2 1 2 4 1 1 5 2 1 4 1 1 4 4 2 4 1 2 2 2 4 1 1 4 2 1 1 2 2
-## [4108] 1 2 2 1 1 2 2 2 4 5 1 1 2 1 1 1 1 3 1 4 1 2 1 2 2 1 2 2 4 1 4 2 2 2 2 1 2
-## [4145] 2 2 2 2 1 1 2 2 1 1 4 2 1 1 2 1 4 4 2 2 4 4 2 1 2 1 1 1 5 1 1 4 1 1 4 1 2
-## [4182] 1 2 2 4 2 1 4 2 2 1 2 2 1 2 1 1 1 2 4 1 4 4 2 2 2 1 2 2 2 2 2 1 1 1 1 4 4
-## [4219] 2 2 1 1 2 4 1 1 1 2 1 1 1 2 2 2 2 1 2 1 2 2 2 2 2 2 1 1 4 1 2 2 1 2 1 1 2
-## [4256] 2 1 2 1 2 1 2 2 1 4 1 4 4 2 2 1 1 1 2 1 1 1 1 2 2 1 5 2 1 1 2 1 3 2 1 2 1
-## [4293] 4 2 2 1 2 2 2 1 1 2 1 1 2 2 4 2 5 4 2 2 1 2 4 4 2 1 2 2 1 2 1 1 2 2 1 2 4
-## [4330] 5 2 4 1 1 1 5 2 2 1 2 1 1 2 1 1 2 2 2 2 2 4 2 2 1 2 2 2 2 1 1 1 1 1 1 1 2
-## [4367] 1 2 1 1 2 4 2 1 2 1 4 4 1 2 1 2 2 1 1 2 2 1 1 2 1 4 1 2 1 4 4 1 1 1 1 1 1
-## [4404] 1 4 2 1 2 1 1 1 2 3 2 2 2 2 4 2 1 2 4 1 1 1 1 5 2 1 2 1 2 1 2 1 4 1 1 1 4
-## [4441] 2 2 1 2 2 1 1 1 1 4 5 1 2 2 2 5</code></pre>
-<pre class="r"><code>plot(summary(res_kmeans))</code></pre>
-<p><img src="/projects/clustering_files/figure-html/examine%20the%20centers-1.png" width="672" /></p>
+<pre class="r"><code>#plot the centers
+plot(summary(res_kmeans))</code></pre>
+<p><img src="/projects/clustering_files/figure-html/plot%20examine%20the%20centers-1.png" width="672" /></p>
 </div>
 </div>
 <div id="predictive-modelling" class="section level2">

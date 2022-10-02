@@ -16,7 +16,7 @@ menu:
     - name: Home
       url: ""
       weight: 1
-    - name: Categories
+    - name: Projects
       url: "categories/"
       weight: 2
     - name: Tags

@@ -15,8 +15,8 @@ I performed this analysis on a dataset containing information about users of [BB
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
-```{r libraries, echo=FALSE, cache=TRUE}
+**Used packages:**
+```{r libraries, cache=TRUE}
 library(rsample)     
 library(dplyr)       
 library(rpart)       
@@ -43,15 +43,6 @@ library(cluster)
 library(gridExtra)
 library(parameters)
 library(see)
-# library(lapply)
-
-# Load
-library("tm")
-library("SnowballC")
-library("wordcloud")
-library("RColorBrewer")
-library("syuzhet")
-library("ggplot2")
 ```
 
 ## 0. Data cleaning
@@ -420,8 +411,7 @@ ggpairs(proportions_for_clustering, columns = 1:18) #no variables are perfectly 
 
 ### 2.2. We determine the ideal number of clusters by computing the inter-cluster SSE per number of clusters
 
-```{r sse within cluster by number of cluster, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
-
+```{r sse within cluster by number of cluster, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache=TRUE, results=FALSE}
 set.seed(123)
 
 #compute within cluster sum of square 
@@ -433,7 +423,9 @@ wss <- function(k) {
 k.values <- 1:15
 
 wss_values <- map_dbl(k.values, wss)
+```
 
+```{r plot of sse, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache=TRUE}
 plot(k.values, wss_values,
        type="b", pch = 19, frame = FALSE, 
        xlab="Number of clusters K",
@@ -441,8 +433,7 @@ plot(k.values, wss_values,
 
 ```
 
-```{r plot clusters for different number of clusters, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
-
+```{r plot clusters for different number of clusters, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache=TRUE}
 #set number of clusters
 k2 <- kmeans(proportions_for_clustering, centers = 3, nstart = 25)
 k3 <- kmeans(proportions_for_clustering, centers = 4, nstart = 25)
@@ -455,22 +446,24 @@ p2 <- fviz_cluster(k3, geom = "point",  data = proportions_for_clustering) + ggt
 p3 <- fviz_cluster(k4, geom = "point",  data = proportions_for_clustering) + ggtitle("k = 5")
 p4 <- fviz_cluster(k5, geom = "point",  data = proportions_for_clustering) + ggtitle("k = 6")
 grid.arrange(p1, p2, p3, p4, nrow = 2)
-
 ```
 
 ### 2.3. Finally, once the ideal number of clusters determined (5), we plot the distance of each cluster's center to the variables' centers
 
-```{r examine the centers, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
-
+```{r examine the centers, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache=TRUE, results=FALSE}
 #examine the distance to the center of the variables for each cluster
 res_kmeans <- cluster_analysis(proportions_for_clustering,
                  n = 5,
                  method = "kmeans")
 
-#plot the centers
+#compute the centers
 predict(res_kmeans)
-plot(summary(res_kmeans))
+```
 
+
+```{r plot examine the centers, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
+#plot the centers
+plot(summary(res_kmeans))
 ```
 
 ## 3. Predictive modelling
