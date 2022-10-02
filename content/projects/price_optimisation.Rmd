@@ -31,9 +31,9 @@ library(cutpointr)
 library(factoextra)
 library(gridExtra)
 library(cluster)
+library(plotROC)
 library(PRROC)
 library(ROCR) 
-library(plotROC)
 ```
 
 # 1. Exploring the data
