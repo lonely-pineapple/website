@@ -6,6 +6,12 @@ categories: ["R Projects"]
 tags: ["R", "Decision tree", "Regression tree", "Random tree", "KNN", "Text mining"]
 ---
 
+I performed this analysis on a dataset containing information about borrowers of the [Lending Club](https://www.lendingclub.com/). This analysis was done during the elective "Data Mining for Business Intelligence" at [London Business School](https://www.london.edu/) taught by [Prof. Nicos Savva](https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n).
+
+![lending_club_1](https://www.hadrienpistre.com/lending_club_1.jpg)
+*Image source: https://www.pymnts.com/earnings/2021/lendingclub-q2-loan-originations-soar-by-84-pct/*
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```

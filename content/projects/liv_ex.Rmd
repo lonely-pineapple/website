@@ -6,7 +6,7 @@ categories: ["Statistical Analyses"]
 tags: ["Time series", "Volatility", "Statistics", "Regime switching", "EViews"]
 ---
 
-This is a statistical analysis I did of the [Liv-ex Fine Wine 100 index](https://www.liv-ex.com/news-insights/indices/) using the software [EViews](https://www.eviews.com/home.html).
+This is a statistical analysis I did of the [Liv-ex Fine Wine 100 index](https://www.liv-ex.com/news-insights/indices/) using the software [EViews](https://www.eviews.com/home.html). This analysis was done during the elective "Time Series Analysis" at [London Business School](https://www.london.edu/) taught by [Prof. Derek Bunn](https://www.london.edu/faculty-and-research/faculty-profiles/b/bunn-dw).
 
 **Click [here](https://www.hadrienpistre.com/time_series_liv_ex_benchmark.pdf) or on the picture below to view the analysis.**
 
