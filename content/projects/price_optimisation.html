@@ -3,7 +3,7 @@ title: "Price optimisation"
 author: "Hadrien Pistre"
 date: 2022-10-02T21:13:14-05:00
 categories: ["R Projects"]
-tags: ["Price optimisation", "Logistic regression", "Linear regression", "Elasticity"]
+tags: ["R", "Price optimisation", "Logistic regression", "Linear regression", "Elasticity"]
 ---
 
 
@@ -11,7 +11,7 @@ tags: ["Price optimisation", "Logistic regression", "Linear regression", "Elasti
 <p>I performed this analysis on a dataset containing fictitious information about car insurance customers.</p>
 <p><img src="https://www.hadrienpistre.com/car_insurance.jpg" alt="car_insurance" />
 <em>Image source: <a href="https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/" class="uri">https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/</a></em></p>
-<p><em>Libraries used</em></p>
+<p><strong>Used packages:</strong></p>
 <pre class="r"><code>library(tidyverse)
 library(dplyr)
 library(readxl)
@@ -22,37 +22,13 @@ library(kableExtra)
 library(GGally)
 library(huxtable)
 library(caret)
-library(PRROC)
-library(ROCR)
 library(cutpointr)
 library(factoextra)
 library(gridExtra)
 library(cluster)
-library(PolynomF)
-library(polynom)
-
-
-library(tidyverse)
-library(dplyr)
-library(fastDummies)
-library(mosaic)
-library(GGally)
-library(caret)
 library(PRROC)
 library(ROCR) 
-library(plotROC)
-library(ggthemes)
-library(lubridate)
-library(here)
-library(skimr)
-library(janitor)
-library(httr)
-library(readxl)
-library(vroom)
-library(infer)
-library(rvest)
-library(fivethirtyeight)
-library(tidyquant)</code></pre>
+library(plotROC)</code></pre>
 <div id="exploring-the-data" class="section level1">
 <h1>1. Exploring the data</h1>
 <div id="import-the-data" class="section level2">
@@ -1283,7 +1259,7 @@ res_kmeans &lt;- cluster_analysis(insurance_data_dummied_short_clustering,
                  n = 2,
                  method = &quot;kmeans&quot;)
 
-#plot the centers
+#predict the centers
 predict(res_kmeans)</code></pre>
 <pre><code>##     [1] 2 1 2 1 1 2 2 1 1 1 2 2 1 2 1 1 1 1 1 1 1 2 1 2 1 1 1 1 1 2 1 2 2 2 1 1
 ##    [37] 1 1 2 2 1 2 2 2 1 1 1 1 2 2 1 1 2 1 1 2 2 1 1 1 1 2 1 2 1 1 1 1 2 1 1 1
@@ -1842,9 +1818,10 @@ predict(res_kmeans)</code></pre>
 ## [19945] 1 1 2 2 1 1 1 1 1 2 1 1 2 1 1 2 2 2 2 1 1 2 1 1 1 2 1 2 1 2 2 1 2 2 2 1
 ## [19981] 2 2 1 2 1 1 2 1 2 1 1 1 2 2 2 2 2 1 2 2 1 2 2 2 2 2 2 1 2 1 1 1 1 1 1 2
 ## [20017] 2</code></pre>
-<pre class="r"><code>plot(summary(res_kmeans))</code></pre>
-<p><img src="/projects/price_optimisation_files/figure-html/cluster%20the%20data-3.png" width="672" /></p>
-<p>As we can see on the charts, there seems to be no cluster: they are all pretty similar and cover the same data points. It would thus be not relevant to cluster our data, as it would not improve our ability to determine the best prices to maximize revenue or profit.</p>
+<pre class="r"><code>#plot the centers
+plot(summary(res_kmeans))</code></pre>
+<p><img src="/projects/price_optimisation_files/figure-html/plot%20cluster%20the%20data-1.png" width="672" /></p>
+<p>As we can see on the charts, there seems to be no cluster: they are all pretty similar and cover the same data points; even when examining for only two clusters, we cannot notice any significant difference between different subgroups of our population. It would thus be not relevant to cluster our data, as it would not improve our ability to determine the best prices to maximize revenue or profit.</p>
 <p>###4.1.2. Determining the prices that maximize revenue and profit</p>
 <p>Since no relevant clustering can be performed, we will examine how uniform changes in price affect contract renewal (demand). We proceed as follows:
 - We compute revenue as being the sum of the contracts’ prices when they are renewed

@@ -3,7 +3,7 @@ title: "Price optimisation"
 author: "Hadrien Pistre"
 date: 2022-10-02T21:13:14-05:00
 categories: ["R Projects"]
-tags: ["Price optimisation", "Logistic regression", "Linear regression", "Elasticity"]
+tags: ["R", "Price optimisation", "Logistic regression", "Linear regression", "Elasticity"]
 ---
 
 I performed this analysis on a dataset containing fictitious information about car insurance customers.
@@ -27,37 +27,13 @@ library(kableExtra)
 library(GGally)
 library(huxtable)
 library(caret)
-library(PRROC)
-library(ROCR)
 library(cutpointr)
 library(factoextra)
 library(gridExtra)
 library(cluster)
-library(PolynomF)
-library(polynom)
-
-
-library(tidyverse)
-library(dplyr)
-library(fastDummies)
-library(mosaic)
-library(GGally)
-library(caret)
 library(PRROC)
 library(ROCR) 
 library(plotROC)
-library(ggthemes)
-library(lubridate)
-library(here)
-library(skimr)
-library(janitor)
-library(httr)
-library(readxl)
-library(vroom)
-library(infer)
-library(rvest)
-library(fivethirtyeight)
-library(tidyquant)
 ```
 
 # 1. Exploring the data
@@ -757,7 +733,6 @@ We now would like to find the prices that maximize respectively profit and reven
 First, we try to determine if your data can be clustered: maybe customer groups with different characteristics or habits can be determined. If such groups exist, they may have different sensivities to changes in price: we could then find the optimal 
 
 ```{r cluster the data, cache=TRUE}
-
 #getting rid of the additional variables we added previously
 insurance_data_dummied_short_clustering <- insurance_data_dummied_short[,1:19]
 
@@ -792,12 +767,17 @@ res_kmeans <- cluster_analysis(insurance_data_dummied_short_clustering,
                  n = 2,
                  method = "kmeans")
 
-#plot the centers
+#predict the centers
 predict(res_kmeans)
+```
+
+
+```{r plot cluster the data, cache=TRUE}
+#plot the centers
 plot(summary(res_kmeans))
 ```
 
-As we can see on the charts, there seems to be no cluster: they are all pretty similar and cover the same data points. It would thus be not relevant to cluster our data, as it would not improve our ability to determine the best prices to maximize revenue or profit.
+As we can see on the charts, there seems to be no cluster: they are all pretty similar and cover the same data points; even when examining for only two clusters, we cannot notice any significant difference between different subgroups of our population. It would thus be not relevant to cluster our data, as it would not improve our ability to determine the best prices to maximize revenue or profit.
 
 ###4.1.2. Determining the prices that maximize revenue and profit
 

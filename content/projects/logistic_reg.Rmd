@@ -686,7 +686,8 @@ top_200_criterion <- head(pred_logistic_reg_assessment_data_df_complete_ordered_
   
 top_200_criterion_loan_nb <- top_200_criterion$loan_nb
 top_200_criterion_loan_nb_df <- data.frame(top_200_criterion_loan_nb)
-print(top_200_criterion_loan_nb_df)
+head(top_200_criterion_loan_nb_df, x = 10)
+tail(top_200_criterion_loan_nb_df, x = 10)
   
 ```
 

@@ -43,6 +43,8 @@ library("syuzhet")
 library("ggplot2")
 ```
 
+# 0. Load the data
+
 ```{r loading lending club full raw, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 #load the data from lending club
 
@@ -50,11 +52,11 @@ lending_club_full_raw <- read_csv((here::here("C:/Users/hadri/Desktop/R Folder/w
 lending_club_full_raw_clean <- lending_club_full_raw[,c(2:21)]
 ```
 
-# 0. Retrieve linear regression from workshop 2
+# 1. Create a linear regression model to determine the factors influencing the interest rate
 
 ```{r data formatting for linear regression, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 
-#we format the data to run the linear regression model we determined in workshop 1
+#we format the data to run a linear regression model
 
 #reduce the number of categories for several variables
 lending_club_full_raw_clean$emp_length <- recode(lending_club_full_raw_clean$emp_length, '< 1 year' = '< 2 years', '1 year' = '< 2 years', '2 years' = '2-5 years', '3 years' = '2-5 years', '4 years' = '2-5 years', '5 years' = '2-5 years', '6 years' = '> 5 years','7 years' = '> 5 years','8 years' = '> 5 years','9 years' = '> 5 years','10+ years' = '> 5 years')
@@ -125,9 +127,9 @@ lin_reg <- lm(interest_rate ~
 summary(lin_reg)
 ```
 
-# 1. Decision Trees
+2 1. Decision Trees
 
-## 1.1. Regression tree
+## 2.1. Regression tree
 
 ```{r regression tree, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 #partition our data for the regression tree
@@ -205,10 +207,9 @@ ggplot(sse_by_depth_regression_tree, aes(x=depth_no,y=values,group = 1))+
       y     = "SSE")
 ```
 
-## 1.2. Random tree
+## 2.2. Random tree
 
-```{r random tree, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
-
+```{r random tree, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE, results=FALSE}
 #create a function to try different number of features used in our random tree
 random_tree_function <- function(x){
 
@@ -239,7 +240,10 @@ sse_9 <- random_tree_function(9)
 sse_10 <- random_tree_function(10)
 sse_11 <- random_tree_function(11)
 sse_12 <- random_tree_function(12)
+```
 
+
+```{r plot random tree, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 #store the outputs in a dataframe
 sse_by_features_included_random_tree <- data.frame(sse = c(sse_2,sse_3,sse_4,sse_5,sse_6,sse_7,sse_8,sse_9,sse_10,sse_11,sse_12))
 
@@ -266,10 +270,9 @@ ggplot(sse_by_features_included_random_tree, aes(x=features_no,y=values,group = 
       y     = "SSE")
 ```
 
-# 2. KNN - k-nearest neighbors
+# 3. KNN - k-nearest neighbors
 
-```{r knn, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
-
+```{r knn, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE, results=FALSE}
 #partition our data for knn, keeping only numerical and dummied data
 train_for_knn <- train_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
 test_for_knn <- test_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
@@ -334,7 +337,10 @@ sse_by_observations_included_knn <- sse_by_observations_included_knn %>%
     names_to = "sse", 
     values_to = "values"
   )
+```
 
+
+```{r plot knn, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 #replace the sse values by the number of features
 sse_by_observations_included_knn$observations_no <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
 sse_by_observations_included_knn[,c(2:3)]
@@ -350,9 +356,9 @@ ggplot(sse_by_observations_included_knn, aes(x=observations_no,y=values,group = 
       y     = "SSE")
 ```
 
-# 3. Text mining
+# 4. Text mining
 
-## 3.1. Data formatting, tokenization and principal components determination
+## 4.1. Data formatting, tokenization and principal components determination
 
 ```{r data formatting for text mining, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 #load the description data in a corpus to format it with the tm package
@@ -414,7 +420,7 @@ lending_club_raw_default_and_components <- cbind(lending_club_raw_default_df,new
 names(lending_club_raw_default_and_components)[1] <- "default"
 ```
 
-## 3.2. Logistic regression using principal components
+## 4.2. Logistic regression using principal components
 
 ```{r text mining logistic regression, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 #partition our data for the text mining logistic regression
@@ -445,7 +451,7 @@ PRROC_obj <- roc.curve(scores.class0 = logistic_reg_pred_all_data_vs_obs$predict
 plot(PRROC_obj)
 ```
 
-## 3.3. Data formatting for global logistic regression (all variables + text)
+## 4.3. Data formatting for global logistic regression (all variables + text)
 
 ```{r format data to text mining comparison, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 
@@ -481,7 +487,7 @@ lending_club_full_raw_clean_dummied_cleared_recoded <- data.frame(lending_club_f
 lending_club_full_recoded_dummied_with_text <- cbind(lending_club_full_raw_clean_dummied_cleared_recoded,new_matrix_pr_df_selection)
 ```
 
-## 3.4. Comparison of logistic regression with and without the principal componentss
+## 4.4. Comparison of logistic regression with and without the principal componentss
 
 ```{r text mining comparison, echo=TRUE, warning=FALSE, message=FALSE, error=FALSE, cache = TRUE}
 #partition our data to analyse the added value of text mining
@@ -555,7 +561,7 @@ PRROC_obj <- roc.curve(scores.class0 = logistic_reg_pred_with_text$prediction, w
 plot(PRROC_obj)
 ```
 
-# 4. Sources
+# 5. Sources
 
 * [UC-R.io: Regression trees](https://uc-r.github.io/regression_trees)\
 * [Statology.org: Classification and regression trees in R](https://www.statology.org/classification-and-regression-trees-in-r/)\
@@ -566,5 +572,3 @@ plot(PRROC_obj)
 * [Analyticsindiamag.com: A guide to term document matrix zith its implementation in R and Python](https://analyticsindiamag.com/a-guide-to-term-document-matrix-with-its-implementation-in-r-and-python/#:~:text=Term%20document%20matrix%20is%20also,the%20matrix%20represent%20the%20word.)\
 * [Cornell.edu: Basic Text Mining with R](https://rstudio-pubs-static.s3.amazonaws.com/132792_864e3813b0ec47cb95c7e1e2e2ad83e7.html)\
 * [Towardsdatascience.com: Principal Component Analysis - PCA 101 Using R](https://towardsdatascience.com/principal-component-analysis-pca-101-using-r-361f4c53a9ff)\
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

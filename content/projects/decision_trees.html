@@ -35,13 +35,16 @@ library(&quot;wordcloud&quot;)
 library(&quot;RColorBrewer&quot;)
 library(&quot;syuzhet&quot;)
 library(&quot;ggplot2&quot;)</code></pre>
+<div id="load-the-data" class="section level1">
+<h1>0. Load the data</h1>
 <pre class="r"><code>#load the data from lending club
 
 lending_club_full_raw &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/lending_club_full_raw.csv&quot;)))
 lending_club_full_raw_clean &lt;- lending_club_full_raw[,c(2:21)]</code></pre>
-<div id="retrieve-linear-regression-from-workshop-2" class="section level1">
-<h1>0. Retrieve linear regression from workshop 2</h1>
-<pre class="r"><code>#we format the data to run the linear regression model we determined in workshop 1
+</div>
+<div id="create-a-linear-regression-model-to-determine-the-factors-influencing-the-interest-rate" class="section level1">
+<h1>1. Create a linear regression model to determine the factors influencing the interest rate</h1>
+<pre class="r"><code>#we format the data to run a linear regression model
 
 #reduce the number of categories for several variables
 lending_club_full_raw_clean$emp_length &lt;- recode(lending_club_full_raw_clean$emp_length, &#39;&lt; 1 year&#39; = &#39;&lt; 2 years&#39;, &#39;1 year&#39; = &#39;&lt; 2 years&#39;, &#39;2 years&#39; = &#39;2-5 years&#39;, &#39;3 years&#39; = &#39;2-5 years&#39;, &#39;4 years&#39; = &#39;2-5 years&#39;, &#39;5 years&#39; = &#39;2-5 years&#39;, &#39;6 years&#39; = &#39;&gt; 5 years&#39;,&#39;7 years&#39; = &#39;&gt; 5 years&#39;,&#39;8 years&#39; = &#39;&gt; 5 years&#39;,&#39;9 years&#39; = &#39;&gt; 5 years&#39;,&#39;10+ years&#39; = &#39;&gt; 5 years&#39;)
@@ -154,11 +157,9 @@ summary(lin_reg)</code></pre>
 ## Residual standard error: 1.056 on 5955 degrees of freedom
 ## Multiple R-squared:  0.9169, Adjusted R-squared:  0.9165 
 ## F-statistic:  2628 on 25 and 5955 DF,  p-value: &lt; 2.2e-16</code></pre>
-</div>
-<div id="decision-trees" class="section level1">
-<h1>1. Decision Trees</h1>
+<p>2 1. Decision Trees</p>
 <div id="regression-tree" class="section level2">
-<h2>1.1. Regression tree</h2>
+<h2>2.1. Regression tree</h2>
 <pre class="r"><code>#partition our data for the regression tree
 lending_club_cleaned_for_tree &lt;- lending_club_full_raw_clean_dummied_cleared[c(1:12)]
 
@@ -815,7 +816,7 @@ sse_by_depth_regression_tree[,c(2:3)]</code></pre>
 <p><img src="/projects/decision_trees_files/figure-html/regression%20tree-5.png" width="672" /></p>
 </div>
 <div id="random-tree" class="section level2">
-<h2>1.2. Random tree</h2>
+<h2>2.2. Random tree</h2>
 <pre class="r"><code>#create a function to try different number of features used in our random tree
 random_tree_function &lt;- function(x){
 
@@ -835,138 +836,17 @@ print(sse)
 }#end of random_tree_function
 
 #store the outputs of the function
-sse_2 &lt;- random_tree_function(2)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 2
-## 
-##           Mean of squared residuals: 1.38899
-##                     % Var explained: 89.69
-##        sse
-## 1 4861.057</code></pre>
-<pre class="r"><code>sse_3 &lt;- random_tree_function(3)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 3
-## 
-##           Mean of squared residuals: 1.035694
-##                     % Var explained: 92.31
-##        sse
-## 1 3689.938</code></pre>
-<pre class="r"><code>sse_4 &lt;- random_tree_function(4)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 4
-## 
-##           Mean of squared residuals: 0.9177982
-##                     % Var explained: 93.19
-##        sse
-## 1 3357.809</code></pre>
-<pre class="r"><code>sse_5 &lt;- random_tree_function(5)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 5
-## 
-##           Mean of squared residuals: 0.8917948
-##                     % Var explained: 93.38
-##        sse
-## 1 3207.838</code></pre>
-<pre class="r"><code>sse_6 &lt;- random_tree_function(6)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 6
-## 
-##           Mean of squared residuals: 0.8552826
-##                     % Var explained: 93.65
-##       sse
-## 1 3148.31</code></pre>
-<pre class="r"><code>sse_7 &lt;- random_tree_function(7)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 7
-## 
-##           Mean of squared residuals: 0.8316517
-##                     % Var explained: 93.83
-##        sse
-## 1 3052.661</code></pre>
-<pre class="r"><code>sse_8 &lt;- random_tree_function(8)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 8
-## 
-##           Mean of squared residuals: 0.8338963
-##                     % Var explained: 93.81
-##        sse
-## 1 3080.011</code></pre>
-<pre class="r"><code>sse_9 &lt;- random_tree_function(9)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 9
-## 
-##           Mean of squared residuals: 0.8231044
-##                     % Var explained: 93.89
-##        sse
-## 1 2995.206</code></pre>
-<pre class="r"><code>sse_10 &lt;- random_tree_function(10)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 10
-## 
-##           Mean of squared residuals: 0.8163374
-##                     % Var explained: 93.94
-##        sse
-## 1 2922.864</code></pre>
-<pre class="r"><code>sse_11 &lt;- random_tree_function(11)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 11
-## 
-##           Mean of squared residuals: 0.8375706
-##                     % Var explained: 93.78
-##        sse
-## 1 2968.982</code></pre>
-<pre class="r"><code>sse_12 &lt;- random_tree_function(12)</code></pre>
-<pre><code>## 
-## Call:
-##  randomForest(formula = interest_rate ~ ., data = train_lending_club_cleaned_for_random_tree,      ntree = 50, mtry = x, importance = TRUE) 
-##                Type of random forest: regression
-##                      Number of trees: 50
-## No. of variables tried at each split: 11
-## 
-##           Mean of squared residuals: 0.8205339
-##                     % Var explained: 93.91
-##        sse
-## 1 2993.188</code></pre>
+sse_2 &lt;- random_tree_function(2)
+sse_3 &lt;- random_tree_function(3)
+sse_4 &lt;- random_tree_function(4)
+sse_5 &lt;- random_tree_function(5)
+sse_6 &lt;- random_tree_function(6)
+sse_7 &lt;- random_tree_function(7)
+sse_8 &lt;- random_tree_function(8)
+sse_9 &lt;- random_tree_function(9)
+sse_10 &lt;- random_tree_function(10)
+sse_11 &lt;- random_tree_function(11)
+sse_12 &lt;- random_tree_function(12)</code></pre>
 <pre class="r"><code>#store the outputs in a dataframe
 sse_by_features_included_random_tree &lt;- data.frame(sse = c(sse_2,sse_3,sse_4,sse_5,sse_6,sse_7,sse_8,sse_9,sse_10,sse_11,sse_12))
 
@@ -1004,11 +884,11 @@ ggplot(sse_by_features_included_random_tree, aes(x=features_no,y=values,group = 
       title = paste(&quot;SSE following the number of features included in the random tree&quot;),
       x     = &quot;Number of features&quot;,
       y     = &quot;SSE&quot;)</code></pre>
-<p><img src="/projects/decision_trees_files/figure-html/random%20tree-1.png" width="672" /></p>
+<p><img src="/projects/decision_trees_files/figure-html/plot%20random%20tree-1.png" width="672" /></p>
 </div>
 </div>
 <div id="knn---k-nearest-neighbors" class="section level1">
-<h1>2. KNN - k-nearest neighbors</h1>
+<h1>3. KNN - k-nearest neighbors</h1>
 <pre class="r"><code>#partition our data for knn, keeping only numerical and dummied data
 train_for_knn &lt;- train_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
 test_for_knn &lt;- test_lending_club_full_raw_clean_dummied_cleared[,c(1:2,4:5,7,13:26)]
@@ -1046,69 +926,34 @@ print(sse_knn)
 }#end of knn_function
 
 #store the outputs of the function
-sse_knn_1 &lt;- knn_function(1)</code></pre>
-<pre><code>##        sse
-## 1 323.1755</code></pre>
-<pre class="r"><code>sse_knn_2 &lt;- knn_function(2)</code></pre>
-<pre><code>##        sse
-## 1 374.3548</code></pre>
-<pre class="r"><code>sse_knn_3 &lt;- knn_function(3)</code></pre>
-<pre><code>##        sse
-## 1 403.1512</code></pre>
-<pre class="r"><code>sse_knn_4 &lt;- knn_function(4)</code></pre>
-<pre><code>##        sse
-## 1 427.9108</code></pre>
-<pre class="r"><code>sse_knn_5 &lt;- knn_function(5)</code></pre>
-<pre><code>##       sse
-## 1 447.933</code></pre>
-<pre class="r"><code>sse_knn_6 &lt;- knn_function(6)</code></pre>
-<pre><code>##        sse
-## 1 438.7698</code></pre>
-<pre class="r"><code>sse_knn_7 &lt;- knn_function(7)</code></pre>
-<pre><code>##        sse
-## 1 448.0448</code></pre>
-<pre class="r"><code>sse_knn_8 &lt;- knn_function(8)</code></pre>
-<pre><code>##       sse
-## 1 443.116</code></pre>
-<pre class="r"><code>sse_knn_9 &lt;- knn_function(9)</code></pre>
-<pre><code>##        sse
-## 1 460.4036</code></pre>
-<pre class="r"><code>sse_knn_10 &lt;- knn_function(10)</code></pre>
-<pre><code>##        sse
-## 1 466.4389</code></pre>
-<pre class="r"><code>sse_knn_11 &lt;- knn_function(11)</code></pre>
-<pre><code>##        sse
-## 1 445.1656</code></pre>
-<pre class="r"><code>sse_knn_12 &lt;- knn_function(12)</code></pre>
-<pre><code>##        sse
-## 1 455.8859</code></pre>
-<pre class="r"><code>sse_knn_13 &lt;- knn_function(13)</code></pre>
-<pre><code>##        sse
-## 1 449.1155</code></pre>
-<pre class="r"><code>sse_knn_14 &lt;- knn_function(14)</code></pre>
-<pre><code>##        sse
-## 1 445.9815</code></pre>
-<pre class="r"><code>sse_knn_15 &lt;- knn_function(15)</code></pre>
-<pre><code>##       sse
-## 1 460.362</code></pre>
-<pre class="r"><code>#store the outputs in a dataframe
+sse_knn_1 &lt;- knn_function(1)
+sse_knn_2 &lt;- knn_function(2)
+sse_knn_3 &lt;- knn_function(3)
+sse_knn_4 &lt;- knn_function(4)
+sse_knn_5 &lt;- knn_function(5)
+sse_knn_6 &lt;- knn_function(6)
+sse_knn_7 &lt;- knn_function(7)
+sse_knn_8 &lt;- knn_function(8)
+sse_knn_9 &lt;- knn_function(9)
+sse_knn_10 &lt;- knn_function(10)
+sse_knn_11 &lt;- knn_function(11)
+sse_knn_12 &lt;- knn_function(12)
+sse_knn_13 &lt;- knn_function(13)
+sse_knn_14 &lt;- knn_function(14)
+sse_knn_15 &lt;- knn_function(15)
+
+#store the outputs in a dataframe
 sse_by_observations_included_knn &lt;- data.frame(sse = c(sse_knn_1,sse_knn_1,sse_knn_2,sse_knn_3,sse_knn_4,sse_knn_5,sse_knn_6,sse_knn_7,sse_knn_8,sse_knn_9,sse_knn_10,sse_knn_11,sse_knn_12,sse_knn_13,sse_knn_14,sse_knn_15))
-sse_by_observations_included_knn</code></pre>
-<pre><code>##    sse.sse sse.sse.1 sse.sse.2 sse.sse.3 sse.sse.4 sse.sse.5 sse.sse.6
-## 1 323.1755  323.1755  374.3548  403.1512  427.9108   447.933  438.7698
-##   sse.sse.7 sse.sse.8 sse.sse.9 sse.sse.10 sse.sse.11 sse.sse.12 sse.sse.13
-## 1  448.0448   443.116  460.4036   466.4389   445.1656   455.8859   449.1155
-##   sse.sse.14 sse.sse.15
-## 1   445.9815    460.362</code></pre>
-<pre class="r"><code>#pivot longer the outputs
+sse_by_observations_included_knn
+
+#pivot longer the outputs
 sse_by_observations_included_knn &lt;- sse_by_observations_included_knn %&gt;% 
   pivot_longer(
     cols = c(1:16),
     names_to = &quot;sse&quot;, 
     values_to = &quot;values&quot;
-  )
-
-#replace the sse values by the number of features
+  )</code></pre>
+<pre class="r"><code>#replace the sse values by the number of features
 sse_by_observations_included_knn$observations_no &lt;- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
 sse_by_observations_included_knn[,c(2:3)]</code></pre>
 <pre><code>## # A tibble: 16 x 2
@@ -1139,12 +984,12 @@ ggplot(sse_by_observations_included_knn, aes(x=observations_no,y=values,group = 
       title = paste(&quot;SSE following the number of observations included in the knn analysis&quot;),
       x     = &quot;Number of observations&quot;,
       y     = &quot;SSE&quot;)</code></pre>
-<p><img src="/projects/decision_trees_files/figure-html/knn-1.png" width="672" /></p>
+<p><img src="/projects/decision_trees_files/figure-html/plot%20knn-1.png" width="672" /></p>
 </div>
 <div id="text-mining" class="section level1">
-<h1>3. Text mining</h1>
+<h1>4. Text mining</h1>
 <div id="data-formatting-tokenization-and-principal-components-determination" class="section level2">
-<h2>3.1. Data formatting, tokenization and principal components determination</h2>
+<h2>4.1. Data formatting, tokenization and principal components determination</h2>
 <pre class="r"><code>#load the description data in a corpus to format it with the tm package
 review_corpus = Corpus(VectorSource(lending_club_full_raw$desc))
 review_corpus = tm_map(review_corpus, content_transformer(tolower))
@@ -1261,7 +1106,7 @@ lending_club_raw_default_and_components &lt;- cbind(lending_club_raw_default_df,
 names(lending_club_raw_default_and_components)[1] &lt;- &quot;default&quot;</code></pre>
 </div>
 <div id="logistic-regression-using-principal-components" class="section level2">
-<h2>3.2. Logistic regression using principal components</h2>
+<h2>4.2. Logistic regression using principal components</h2>
 <pre class="r"><code>#partition our data for the text mining logistic regression
 smp_size_3 &lt;- floor(0.6 * nrow(lending_club_raw_default_and_components))
 
@@ -1342,7 +1187,7 @@ plot(PRROC_obj)</code></pre>
 <p><img src="/projects/decision_trees_files/figure-html/text%20mining%20logistic%20regression-1.png" width="672" /></p>
 </div>
 <div id="data-formatting-for-global-logistic-regression-all-variables-text" class="section level2">
-<h2>3.3. Data formatting for global logistic regression (all variables + text)</h2>
+<h2>4.3. Data formatting for global logistic regression (all variables + text)</h2>
 <pre class="r"><code>#format the data to make it fit the best logistic regression we came up with in workshop 3
 lending_club_full_raw_clean_dummied_cleared_recoded &lt;- lending_club_full_raw_clean
 
@@ -1375,7 +1220,7 @@ lending_club_full_raw_clean_dummied_cleared_recoded &lt;- data.frame(lending_clu
 lending_club_full_recoded_dummied_with_text &lt;- cbind(lending_club_full_raw_clean_dummied_cleared_recoded,new_matrix_pr_df_selection)</code></pre>
 </div>
 <div id="comparison-of-logistic-regression-with-and-without-the-principal-componentss" class="section level2">
-<h2>3.4. Comparison of logistic regression with and without the principal componentss</h2>
+<h2>4.4. Comparison of logistic regression with and without the principal componentss</h2>
 <pre class="r"><code>#partition our data to analyse the added value of text mining
 smp_size_4 &lt;- floor(0.6 * nrow(lending_club_full_recoded_dummied_with_text))
 
@@ -1584,7 +1429,7 @@ plot(PRROC_obj)</code></pre>
 </div>
 </div>
 <div id="sources" class="section level1">
-<h1>4. Sources</h1>
+<h1>5. Sources</h1>
 <ul>
 <li><a href="https://uc-r.github.io/regression_trees">UC-R.io: Regression trees</a><br />
 </li>
@@ -1605,5 +1450,4 @@ plot(PRROC_obj)</code></pre>
 <li><a href="https://towardsdatascience.com/principal-component-analysis-pca-101-using-r-361f4c53a9ff">Towardsdatascience.com: Principal Component Analysis - PCA 101 Using R</a><br />
 </li>
 </ul>
-<p>Note that the <code>echo = FALSE</code> parameter was added to the code chunk to prevent printing of the R code that generated the plot.</p>
 </div>

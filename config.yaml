@@ -27,8 +27,8 @@ menu:
       weight: 4
       
 params:
-  description: "A website built through Hugo and blogdown."
-  footer: "&copy; [Yihui Xie](https://yihui.org) 2017 -- {Year} | [Github](https://github.com/yihui) | [Twitter](https://twitter.com/xieyihui)"
+  description: "Hadrien Pistre"
+  footer: "Hadrien Pistre {Year} - [LinkedIn](https://www.linkedin.com/in/hadrien-pistre/) | Website template by &copy; Yihui Xie - [Github](https://github.com/yihui)"
 
 markup:
   highlight:

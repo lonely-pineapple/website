@@ -8,10 +8,7 @@ title: Home
 
 ## INTRODUCTION
 
-Hello! I was born in Paris, France. I studied in Paris and Bordeaux, and did a couple of internships in Paris. After those experiences, I wanted to live and work abroad. I therefore decided to move to London, UK to study and then work full time.
-
-I use this website to post my R projects as well as a few essays.
-
+Hello and welcome on my personal website! In **[Projects](https://www.hadrienpistre.com/categories/)** or at the bottom of this page, you will pieces of works I've done on my own during my studies or free time; these are referenced by key words in **[Tags](https://www.hadrienpistre.com/tags/)** as well. You can also download my resume in **[CV](https://www.hadrienpistre.com/hadrien_pistre_cv.pdf)**. 
 
 ## EDUCATION
 
