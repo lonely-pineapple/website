@@ -1,0 +1,2139 @@
+---
+title: "COPY Logistic regression and loan default prediction"
+author: "Hadrien Pistre"
+date: 2022-04-17T21:13:14-05:00
+categories: ["R Projects"]
+tags: ["R", "Logistic regression", "Linear regression", "Loan default prediction"]
+---
+
+
+
+<p>I performed this analysis on a dataset containing information about borrowers of the <a href="https://www.lendingclub.com/">Lending Club</a>. This analysis was done during the elective “Data Mining for Business Intelligence” at <a href="https://www.london.edu/">London Business School</a> taught by <a href="https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n">Prof. Nicos Savva</a>, <a href="https://www.london.edu/faculty-and-research/faculty-profiles/k/kostis-christodoulou">Prof. Kostis Christodoulou</a> and <a href="https://www.london.edu/faculty-and-research/faculty-profiles/e/ekaterina-abramova">Prof. Ekaterina Abramova</a>.</p>
+<p><img src="https://www.hadrienpistre.com/lending_club_2.jpg" alt="lending_club_2" />
+<em>Image source: <a href="https://www.telegraph.co.uk/business/2016/05/23/peer-to-peer-lenders-will-never-challenge-the-banks-says-deloitt/" class="uri">https://www.telegraph.co.uk/business/2016/05/23/peer-to-peer-lenders-will-never-challenge-the-banks-says-deloitt/</a></em></p>
+<p><strong>Used packages:</strong></p>
+<pre class="r"><code>library(tidyverse)
+library(dplyr)
+library(fastDummies)
+library(mosaic)
+library(GGally)
+library(caret)
+library(PRROC)
+library(ROCR) 
+library(plotROC)
+library(ggthemes)
+library(lubridate)
+library(here)
+library(skimr)
+library(janitor)
+library(httr)
+library(readxl)
+library(vroom)
+library(infer)
+library(rvest)
+library(fivethirtyeight)
+library(tidyquant)</code></pre>
+<pre class="r"><code>#load the dataset about borrowers, their characteristics and they having defaulted or not
+
+lendingclub &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/lending_club_raw_data.csv&quot;)))
+lendingclub_clean &lt;- lendingclub[,c(1:19)]
+head(lendingclub_clean,10)</code></pre>
+<pre><code>## # A tibble: 10 x 19
+##    int_rate loan_amnt `term (months)` installment   dti delinq_2yrs annual_inc
+##       &lt;dbl&gt;     &lt;dbl&gt;           &lt;dbl&gt;       &lt;dbl&gt; &lt;dbl&gt;       &lt;dbl&gt;      &lt;dbl&gt;
+##  1     0.11      5000              36       163.  27.6            0      24000
+##  2     0.15      2500              60        59.8  1              0      30000
+##  3     0.16      2400              36        84.3  8.72           0      12252
+##  4     0.13     10000              36       339.  20              0      49200
+##  5     0.13      3000              60        67.8 17.9            0      80000
+##  6     0.08      5000              36       156.  11.2            0      36000
+##  7     0.16      7000              60       170.  23.5            0      47004
+##  8     0.19      3000              36       109.   5.35           0      48000
+##  9     0.21      5600              60       152.   5.55           0      40000
+## 10     0.13      5375              60       121.  18.1            0      15000
+## # ... with 12 more variables: grade &lt;chr&gt;, emp_title &lt;chr&gt;, emp_length &lt;chr&gt;,
+## #   home_ownership &lt;chr&gt;, verification_status &lt;chr&gt;, issue_d &lt;chr&gt;,
+## #   zip_code &lt;chr&gt;, addr_state &lt;chr&gt;, loan_status &lt;chr&gt;, desc &lt;chr&gt;,
+## #   purpose &lt;chr&gt;, title &lt;chr&gt;</code></pre>
+<div id="data-cleaning" class="section level1">
+<h1>1. Data cleaning</h1>
+<div id="create-a-variable-that-takes-the-value-1-if-the-loan-is-charged-off-and-0-otherwise." class="section level2">
+<h2>1.1. Create a variable that takes the value 1 if the loan is charged off, and 0 otherwise.</h2>
+<pre class="r"><code>#create the column in which we will store the binary values of the loan status
+loan_stat_binary &lt;- lendingclub_clean$loan_status
+lendingclub_clean &lt;- cbind(lendingclub_clean,loan_stat_binary)
+
+#create the binary values
+lendingclub_clean &lt;- lendingclub_clean %&gt;%
+      mutate(loan_stat_binary = ifelse(loan_stat_binary == &quot;Charged Off&quot;,1,0))
+colnames(lendingclub_clean)</code></pre>
+<pre><code>##  [1] &quot;int_rate&quot;            &quot;loan_amnt&quot;           &quot;term (months)&quot;      
+##  [4] &quot;installment&quot;         &quot;dti&quot;                 &quot;delinq_2yrs&quot;        
+##  [7] &quot;annual_inc&quot;          &quot;grade&quot;               &quot;emp_title&quot;          
+## [10] &quot;emp_length&quot;          &quot;home_ownership&quot;      &quot;verification_status&quot;
+## [13] &quot;issue_d&quot;             &quot;zip_code&quot;            &quot;addr_state&quot;         
+## [16] &quot;loan_status&quot;         &quot;desc&quot;                &quot;purpose&quot;            
+## [19] &quot;title&quot;               &quot;loan_stat_binary&quot;</code></pre>
+</div>
+<div id="investigate-the-frequency-of-loans-defaulting" class="section level2">
+<h2>1.2. Investigate the frequency of loans defaulting</h2>
+<pre class="r"><code>#select the quantitative variables and create a correlation plot
+lendingclub_quant &lt;- lendingclub_clean[c(1:2,4:5,7,20)]
+ggpairs(lendingclub_quant)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/correlation%20matrix-1.png" width="672" /></p>
+</div>
+</div>
+<div id="create-a-logistic-regression-model-to-predict-the-probability-of-default-of-loans" class="section level1">
+<h1>2. Create a logistic regression model to predict the probability of default of loans</h1>
+<div id="create-the-logistic-regression-model" class="section level2">
+<h2>2.1. Create the logistic regression model</h2>
+<pre class="r"><code>#create a sample from the data of 10,000 observations
+lendingclub_sample &lt;- sample(lendingclub_clean,10000)
+
+#create a logistic regression with the two required variables
+logistic_reg &lt;- glm(loan_stat_binary ~
+                    loan_amnt + dti,
+                    family = binomial,
+                    data = lendingclub_sample)
+summary(logistic_reg)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = loan_stat_binary ~ loan_amnt + dti, family = binomial, 
+##     data = lendingclub_sample)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -0.7399  -0.5757  -0.5409  -0.5003   2.1363  
+## 
+## Coefficients:
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -2.219e+00  8.225e-02 -26.974  &lt; 2e-16 ***
+## loan_amnt    1.481e-05  3.864e-06   3.833 0.000127 ***
+## dti          1.869e-02  4.594e-03   4.068 4.75e-05 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 7319.3  on 8920  degrees of freedom
+## Residual deviance: 7285.9  on 8918  degrees of freedom
+##   (1079 observations deleted due to missingness)
+## AIC: 7291.9
+## 
+## Number of Fisher Scoring iterations: 4</code></pre>
+<pre class="r"><code>#use our model to predict the data using our current data set and store it in a df
+pred_log_reg &lt;- predict(logistic_reg, newdata = lendingclub_sample, type = &quot;response&quot;)
+pred_log_reg_df &lt;- data.frame(pred_log_reg)
+
+#isolate the binary variables to create the upcoming ROC curves
+sample_binary_loan_stat &lt;- lendingclub_sample[&quot;loan_stat_binary&quot;]
+
+#create a ROC curve to assess the model&#39;s effectiveness
+ROC_logreg &lt;- cbind(sample_binary_loan_stat,pred_log_reg_df)
+ROC_logreg_clean &lt;- na.omit(ROC_logreg)
+PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_clean$pred_log_reg, weights.class0=ROC_logreg_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/first%20logistic%20reg-1.png" width="672" /></p>
+<pre class="r"><code>#create a confusion matrix with a 0.5 cut-off
+pred_log_reg_cut_off_50 &lt;- ifelse(pred_log_reg_df &gt; 0.5, 1, 0)
+pred_log_reg_cut_off_50_df &lt;- data.frame(pred_log_reg_cut_off_50)
+
+table(lendingclub_sample$loan_stat_binary, pred_log_reg_cut_off_50)</code></pre>
+<pre><code>##    pred_log_reg_cut_off_50
+##        0
+##   0 7646
+##   1 1275</code></pre>
+<pre class="r"><code>#create a confusion matrix with a 0.25 cut-off
+pred_log_reg_cut_off_25 &lt;- ifelse(pred_log_reg_df &gt; 0.25, 1, 0)
+pred_log_reg_cut_off_25_df &lt;- data.frame(pred_log_reg_cut_off_25)
+
+table(lendingclub_sample$loan_stat_binary, pred_log_reg_cut_off_25)</code></pre>
+<pre><code>##    pred_log_reg_cut_off_25
+##        0
+##   0 7646
+##   1 1275</code></pre>
+<pre class="r"><code>#create a confusion matrix with a 0.15 cut-off
+pred_log_reg_cut_off_15 &lt;- ifelse(pred_log_reg_df &gt; 0.15, 1, 0)
+pred_log_reg_cut_off_15_df &lt;- data.frame(pred_log_reg_cut_off_15)
+
+table(lendingclub_sample$loan_stat_binary, pred_log_reg_cut_off_15)</code></pre>
+<pre><code>##    pred_log_reg_cut_off_15
+##        0    1
+##   0 5084 2562
+##   1  756  519</code></pre>
+</div>
+<div id="add-new-variables-to-try-to-increase-the-accuracy-of-our-logistic-regression-model" class="section level2">
+<h2>2.2. Add new variables to try to increase the accuracy of our logistic regression model</h2>
+<pre class="r"><code>#reduce the number of categories for several variables
+lendingclub_sample$emp_length &lt;- recode(lendingclub_sample$emp_length, &#39;&lt; 1 year&#39; = &#39;&lt; 2 years&#39;, &#39;1 year&#39; = &#39;&lt; 2 years&#39;, &#39;2 years&#39; = &#39;2-5 years&#39;, &#39;3 years&#39; = &#39;2-5 years&#39;, &#39;4 years&#39; = &#39;2-5 years&#39;, &#39;5 years&#39; = &#39;2-5 years&#39;, &#39;6 years&#39; = &#39;&gt; 5 years&#39;,&#39;7 years&#39; = &#39;&gt; 5 years&#39;,&#39;8 years&#39; = &#39;&gt; 5 years&#39;,&#39;9 years&#39; = &#39;&gt; 5 years&#39;,&#39;10+ years&#39; = &#39;&gt; 5 years&#39;)
+
+lendingclub_sample$delinq_2yrs &lt;- recode(lendingclub_sample$delinq_2yrs, &#39;0&#39; = &#39;&lt; 2&#39;, &#39;1&#39; = &#39;&lt; 2&#39;, &#39;2&#39; = &#39;2-5&#39;, &#39;3&#39; = &#39;2-5&#39;, &#39;4&#39; = &#39;2-5&#39;, &#39;5&#39; = &#39;2-5&#39;, &#39;6&#39; = &#39;&gt; 5&#39;,&#39;7&#39; = &#39;&gt; 5&#39;,&#39;8&#39; = &#39;&gt; 5&#39;,&#39;9&#39; = &#39;&gt; 5&#39;)
+
+lendingclub_sample$verification_status &lt;- recode(lendingclub_sample$verification_status, &#39;Source Verified&#39; = &#39;Verified&#39;, &#39;Verified&#39; = &#39;Verified&#39;, &#39;Not Verified&#39; = &#39;Not Verified&#39;)
+
+#select the relevant columns of our df
+lendingclub_sample &lt;- lendingclub_sample[,c(1:20)]
+
+#create dummies for the categorical variables
+lendingclub_sample_dummied &lt;- dummy_cols(lendingclub_sample, select_columns = c(&#39;term (months)&#39;,&#39;grade&#39;,&#39;emp_length&#39;,&#39;home_ownership&#39;,&#39;verification_status&#39;,&#39;purpose&#39;))
+
+#delete the useless dummies
+drops &lt;- c(&quot;term (months)_60&quot;,&quot;term (months)_NA&quot;,&quot;grade_G&quot;,&quot;grade_NA&quot;,&quot;emp_length_&gt; 5 years&quot;,&quot;emp_length_n/a&quot;,&quot;emp_length_NA&quot;,&quot;home_ownership_OTHER&quot;,&quot;home_ownership_NA&quot;,&quot;verification_status_Verified&quot;,&quot;verification_status_NA&quot;,&quot;purpose_other&quot;,&quot;purpose_NA&quot;)
+lendingclub_sample_dummied_cleaned &lt;- lendingclub_sample_dummied[ , !(names(lendingclub_sample_dummied) %in% drops)]
+lendingclub_sample_dummied_cleaned_names &lt;- clean_names(lendingclub_sample_dummied_cleaned)
+
+#display the names of the selected variables
+colnames(lendingclub_sample_dummied_cleaned_names)</code></pre>
+<pre><code>##  [1] &quot;int_rate&quot;                         &quot;loan_amnt&quot;                       
+##  [3] &quot;term_months&quot;                      &quot;installment&quot;                     
+##  [5] &quot;dti&quot;                              &quot;delinq_2yrs&quot;                     
+##  [7] &quot;annual_inc&quot;                       &quot;grade&quot;                           
+##  [9] &quot;emp_title&quot;                        &quot;emp_length&quot;                      
+## [11] &quot;home_ownership&quot;                   &quot;verification_status&quot;             
+## [13] &quot;issue_d&quot;                          &quot;zip_code&quot;                        
+## [15] &quot;addr_state&quot;                       &quot;loan_status&quot;                     
+## [17] &quot;desc&quot;                             &quot;purpose&quot;                         
+## [19] &quot;title&quot;                            &quot;loan_stat_binary&quot;                
+## [21] &quot;term_months_36&quot;                   &quot;grade_a&quot;                         
+## [23] &quot;grade_b&quot;                          &quot;grade_c&quot;                         
+## [25] &quot;grade_d&quot;                          &quot;grade_e&quot;                         
+## [27] &quot;grade_f&quot;                          &quot;emp_length_2_years&quot;              
+## [29] &quot;emp_length_2_5_years&quot;             &quot;home_ownership_mortgage&quot;         
+## [31] &quot;home_ownership_own&quot;               &quot;home_ownership_rent&quot;             
+## [33] &quot;verification_status_not_verified&quot; &quot;purpose_car&quot;                     
+## [35] &quot;purpose_credit_card&quot;              &quot;purpose_debt_consolidation&quot;      
+## [37] &quot;purpose_educational&quot;              &quot;purpose_home_improvement&quot;        
+## [39] &quot;purpose_house&quot;                    &quot;purpose_major_purchase&quot;          
+## [41] &quot;purpose_medical&quot;                  &quot;purpose_moving&quot;                  
+## [43] &quot;purpose_renewable_energy&quot;         &quot;purpose_small_business&quot;          
+## [45] &quot;purpose_vacation&quot;                 &quot;purpose_wedding&quot;</code></pre>
+<pre class="r"><code>#create a new logistic regression with the new variables
+logistic_reg_2 &lt;- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+summary(logistic_reg_2)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = loan_stat_binary ~ loan_amnt + installment + dti + 
+##     annual_inc + term_months_36 + grade_a + grade_b + grade_c + 
+##     grade_d + grade_e + grade_f + emp_length_2_years + emp_length_2_5_years + 
+##     home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+##     verification_status_not_verified + purpose_car + purpose_credit_card + 
+##     purpose_debt_consolidation + purpose_educational + purpose_home_improvement + 
+##     purpose_house + purpose_major_purchase + purpose_medical + 
+##     purpose_moving + purpose_renewable_energy + purpose_small_business + 
+##     purpose_vacation + purpose_wedding, family = binomial, data = lendingclub_sample_dummied_cleaned_names)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.4598  -0.5873  -0.4604  -0.3332   3.5833  
+## 
+## Coefficients:
+##                                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                       2.046e-01  6.946e-01   0.295  0.76829    
+## loan_amnt                        -2.758e-05  2.647e-05  -1.042  0.29743    
+## installment                       8.515e-04  9.051e-04   0.941  0.34679    
+## dti                               9.113e-03  4.956e-03   1.839  0.06594 .  
+## annual_inc                       -6.168e-06  1.055e-06  -5.849 4.95e-09 ***
+## term_months_36                   -6.858e-01  1.411e-01  -4.861 1.17e-06 ***
+## grade_a                          -1.899e+00  2.824e-01  -6.725 1.75e-11 ***
+## grade_b                          -1.328e+00  2.669e-01  -4.975 6.52e-07 ***
+## grade_c                          -1.035e+00  2.659e-01  -3.894 9.87e-05 ***
+## grade_d                          -7.197e-01  2.630e-01  -2.736  0.00621 ** 
+## grade_e                          -5.957e-01  2.652e-01  -2.247  0.02467 *  
+## grade_f                          -3.174e-01  2.858e-01  -1.111  0.26675    
+## emp_length_2_years               -1.106e-01  8.820e-02  -1.254  0.20983    
+## emp_length_2_5_years             -1.456e-01  7.185e-02  -2.026  0.04273 *  
+## home_ownership_mortgage           1.621e-01  6.317e-01   0.257  0.79748    
+## home_ownership_own                3.201e-01  6.380e-01   0.502  0.61579    
+## home_ownership_rent               5.323e-02  6.307e-01   0.084  0.93274    
+## verification_status_not_verified  8.135e-02  6.958e-02   1.169  0.24235    
+## purpose_car                      -3.188e-01  1.932e-01  -1.650  0.09895 .  
+## purpose_credit_card              -4.203e-01  1.368e-01  -3.072  0.00213 ** 
+## purpose_debt_consolidation       -1.992e-01  1.067e-01  -1.867  0.06184 .  
+## purpose_educational               2.669e-01  3.152e-01   0.847  0.39702    
+## purpose_home_improvement         -2.276e-01  1.577e-01  -1.443  0.14900    
+## purpose_house                    -2.385e-01  3.376e-01  -0.707  0.47986    
+## purpose_major_purchase           -4.227e-01  1.804e-01  -2.343  0.01912 *  
+## purpose_medical                   4.096e-01  2.323e-01   1.763  0.07788 .  
+## purpose_moving                   -3.359e-01  3.051e-01  -1.101  0.27086    
+## purpose_renewable_energy         -1.206e-01  6.533e-01  -0.185  0.85348    
+## purpose_small_business            6.021e-01  1.541e-01   3.908 9.29e-05 ***
+## purpose_vacation                  5.839e-01  3.211e-01   1.819  0.06898 .  
+## purpose_wedding                  -5.663e-01  2.644e-01  -2.142  0.03219 *  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 7319.3  on 8920  degrees of freedom
+## Residual deviance: 6784.5  on 8890  degrees of freedom
+##   (1079 observations deleted due to missingness)
+## AIC: 6846.5
+## 
+## Number of Fisher Scoring iterations: 5</code></pre>
+<pre class="r"><code>#predict with the log reg 2 the default probability with our current dataset and store in a df
+pred_log_reg_2 &lt;- predict(logistic_reg_2, newdata = lendingclub_sample_dummied_cleaned_names, type = &quot;response&quot;)
+pred_log_reg_2_df &lt;- data.frame(pred_log_reg_2)
+
+#isolate the binary variables to create the ROC curve
+sample_binary_cleaned_loan_stat &lt;- lendingclub_sample_dummied_cleaned_names[&quot;loan_stat_binary&quot;]
+
+#create a ROC curve to assess the model&#39;s effectiveness
+ROC_logreg_2 &lt;- cbind(sample_binary_cleaned_loan_stat,pred_log_reg_2_df)
+ROC_logreg_2_clean &lt;- na.omit(ROC_logreg_2)
+PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_2_clean$pred_log_reg, weights.class0=ROC_logreg_2_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/second%20logistic%20reg-1.png" width="672" /></p>
+<pre class="r"><code>#create interaction terms between the home ownership status and the credit rating
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_mort_E &lt;- lendingclub_sample_dummied_cleaned_names$home_ownership_mortgage * lendingclub_sample_dummied_cleaned_names$grade_e
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_own_E &lt;- lendingclub_sample_dummied_cleaned_names$home_ownership_own * lendingclub_sample_dummied_cleaned_names$grade_e
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_rent_E &lt;- lendingclub_sample_dummied_cleaned_names$home_ownership_rent * lendingclub_sample_dummied_cleaned_names$grade_e
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_mort_F &lt;- lendingclub_sample_dummied_cleaned_names$home_ownership_mortgage * lendingclub_sample_dummied_cleaned_names$grade_f
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_own_F &lt;- lendingclub_sample_dummied_cleaned_names$home_ownership_own * lendingclub_sample_dummied_cleaned_names$grade_f
+lendingclub_sample_dummied_cleaned_names$home_ownsh_x_rent_F &lt;- lendingclub_sample_dummied_cleaned_names$home_ownership_rent * lendingclub_sample_dummied_cleaned_names$grade_f
+
+#create interaction terms between the loan term and the loan amount
+lendingclub_sample_dummied_cleaned_names$loan_amnt_x_term_36 &lt;- lendingclub_sample_dummied_cleaned_names$loan_amnt * lendingclub_sample_dummied_cleaned_names$term_months_36
+
+#create a new logistic regression with our interaction terms
+logistic_reg_3 &lt;- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding +
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F + home_ownsh_x_rent_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+
+summary(logistic_reg_3)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = loan_stat_binary ~ loan_amnt + installment + dti + 
+##     annual_inc + term_months_36 + grade_a + grade_b + grade_c + 
+##     grade_d + grade_e + grade_f + emp_length_2_years + emp_length_2_5_years + 
+##     home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+##     verification_status_not_verified + purpose_car + purpose_credit_card + 
+##     purpose_debt_consolidation + purpose_educational + purpose_home_improvement + 
+##     purpose_house + purpose_major_purchase + purpose_medical + 
+##     purpose_moving + purpose_renewable_energy + purpose_small_business + 
+##     purpose_vacation + purpose_wedding + home_ownsh_x_mort_E + 
+##     home_ownsh_x_own_E + home_ownsh_x_rent_E + home_ownsh_x_mort_F + 
+##     home_ownsh_x_own_F + home_ownsh_x_rent_F + loan_amnt_x_term_36, 
+##     family = binomial, data = lendingclub_sample_dummied_cleaned_names)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.4790  -0.5869  -0.4598  -0.3325   3.5880  
+## 
+## Coefficients: (1 not defined because of singularities)
+##                                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                       2.967e-01  7.138e-01   0.416  0.67766    
+## loan_amnt                        -1.037e-04  5.574e-05  -1.861  0.06274 .  
+## installment                       4.022e-03  2.242e-03   1.794  0.07284 .  
+## dti                               8.580e-03  4.970e-03   1.726  0.08427 .  
+## annual_inc                       -6.224e-06  1.057e-06  -5.889 3.88e-09 ***
+## term_months_36                   -6.963e-01  1.414e-01  -4.926 8.38e-07 ***
+## grade_a                          -1.582e+00  3.507e-01  -4.511 6.44e-06 ***
+## grade_b                          -1.037e+00  3.279e-01  -3.162  0.00157 ** 
+## grade_c                          -7.838e-01  3.127e-01  -2.507  0.01218 *  
+## grade_d                          -5.111e-01  2.962e-01  -1.726  0.08444 .  
+## grade_e                          -1.205e+01  1.860e+02  -0.065  0.94835    
+## grade_f                          -1.512e-01  3.304e-01  -0.458  0.64712    
+## emp_length_2_years               -1.069e-01  8.825e-02  -1.211  0.22597    
+## emp_length_2_5_years             -1.426e-01  7.193e-02  -1.982  0.04744 *  
+## home_ownership_mortgage          -1.459e-01  6.355e-01  -0.230  0.81847    
+## home_ownership_own                5.863e-02  6.424e-01   0.091  0.92729    
+## home_ownership_rent              -2.619e-01  6.347e-01  -0.413  0.67986    
+## verification_status_not_verified  8.070e-02  6.965e-02   1.159  0.24658    
+## purpose_car                      -3.180e-01  1.930e-01  -1.648  0.09941 .  
+## purpose_credit_card              -4.158e-01  1.369e-01  -3.038  0.00238 ** 
+## purpose_debt_consolidation       -1.930e-01  1.068e-01  -1.807  0.07076 .  
+## purpose_educational               2.629e-01  3.148e-01   0.835  0.40374    
+## purpose_home_improvement         -2.322e-01  1.578e-01  -1.471  0.14132    
+## purpose_house                    -2.170e-01  3.382e-01  -0.642  0.52098    
+## purpose_major_purchase           -4.274e-01  1.804e-01  -2.370  0.01780 *  
+## purpose_medical                   4.107e-01  2.321e-01   1.770  0.07672 .  
+## purpose_moving                   -3.382e-01  3.048e-01  -1.110  0.26720    
+## purpose_renewable_energy         -9.596e-02  6.524e-01  -0.147  0.88307    
+## purpose_small_business            6.148e-01  1.546e-01   3.977 6.97e-05 ***
+## purpose_vacation                  5.703e-01  3.210e-01   1.777  0.07560 .  
+## purpose_wedding                  -5.622e-01  2.643e-01  -2.127  0.03341 *  
+## home_ownsh_x_mort_E               1.168e+01  1.860e+02   0.063  0.94993    
+## home_ownsh_x_own_E                1.107e+01  1.860e+02   0.060  0.95252    
+## home_ownsh_x_rent_E               1.162e+01  1.860e+02   0.062  0.95019    
+## home_ownsh_x_mort_F              -1.912e-01  3.051e-01  -0.627  0.53077    
+## home_ownsh_x_own_F                2.151e-02  6.808e-01   0.032  0.97480    
+## home_ownsh_x_rent_F                      NA         NA      NA       NA    
+## loan_amnt_x_term_36              -3.305e-05  2.160e-05  -1.530  0.12594    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 7319.3  on 8920  degrees of freedom
+## Residual deviance: 6777.4  on 8884  degrees of freedom
+##   (1079 observations deleted due to missingness)
+## AIC: 6851.4
+## 
+## Number of Fisher Scoring iterations: 11</code></pre>
+<pre class="r"><code>#predict with the log reg 2 the default probability with our current dataset and store in a df
+pred_log_reg_3 &lt;- predict(logistic_reg_3, newdata = lendingclub_sample_dummied_cleaned_names, type = &quot;response&quot;)
+pred_log_reg_3_df &lt;- data.frame(pred_log_reg_3)
+
+#plot a ROC curve for log reg 3
+ROC_logreg_3 &lt;- cbind(sample_binary_cleaned_loan_stat,pred_log_reg_3_df)
+ROC_logreg_3_clean &lt;- na.omit(ROC_logreg_3)
+PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_3_clean$pred_log_reg, weights.class0=ROC_logreg_3_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/interaction%20terms%20and%20third%20log%20reg-1.png" width="672" /></p>
+<pre class="r"><code>#create a logistic regression removing the variables yielding only NAs
+logistic_reg_4 &lt;- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding +
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+
+summary(logistic_reg_4)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = loan_stat_binary ~ loan_amnt + installment + dti + 
+##     annual_inc + term_months_36 + grade_a + grade_b + grade_c + 
+##     grade_d + grade_e + grade_f + emp_length_2_years + emp_length_2_5_years + 
+##     home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+##     verification_status_not_verified + purpose_car + purpose_credit_card + 
+##     purpose_debt_consolidation + purpose_educational + purpose_home_improvement + 
+##     purpose_house + purpose_major_purchase + purpose_medical + 
+##     purpose_moving + purpose_renewable_energy + purpose_small_business + 
+##     purpose_vacation + purpose_wedding + home_ownsh_x_mort_E + 
+##     home_ownsh_x_own_E + home_ownsh_x_rent_E + home_ownsh_x_mort_F + 
+##     home_ownsh_x_own_F + loan_amnt_x_term_36, family = binomial, 
+##     data = lendingclub_sample_dummied_cleaned_names)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.4790  -0.5869  -0.4598  -0.3325   3.5880  
+## 
+## Coefficients:
+##                                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                       2.967e-01  7.138e-01   0.416  0.67766    
+## loan_amnt                        -1.037e-04  5.574e-05  -1.861  0.06274 .  
+## installment                       4.022e-03  2.242e-03   1.794  0.07284 .  
+## dti                               8.580e-03  4.970e-03   1.726  0.08427 .  
+## annual_inc                       -6.224e-06  1.057e-06  -5.889 3.88e-09 ***
+## term_months_36                   -6.963e-01  1.414e-01  -4.926 8.38e-07 ***
+## grade_a                          -1.582e+00  3.507e-01  -4.511 6.44e-06 ***
+## grade_b                          -1.037e+00  3.279e-01  -3.162  0.00157 ** 
+## grade_c                          -7.838e-01  3.127e-01  -2.507  0.01218 *  
+## grade_d                          -5.111e-01  2.962e-01  -1.726  0.08444 .  
+## grade_e                          -1.205e+01  1.860e+02  -0.065  0.94835    
+## grade_f                          -1.512e-01  3.304e-01  -0.458  0.64712    
+## emp_length_2_years               -1.069e-01  8.825e-02  -1.211  0.22597    
+## emp_length_2_5_years             -1.426e-01  7.193e-02  -1.982  0.04744 *  
+## home_ownership_mortgage          -1.459e-01  6.355e-01  -0.230  0.81847    
+## home_ownership_own                5.863e-02  6.424e-01   0.091  0.92729    
+## home_ownership_rent              -2.619e-01  6.347e-01  -0.413  0.67986    
+## verification_status_not_verified  8.070e-02  6.965e-02   1.159  0.24658    
+## purpose_car                      -3.180e-01  1.930e-01  -1.648  0.09941 .  
+## purpose_credit_card              -4.158e-01  1.369e-01  -3.038  0.00238 ** 
+## purpose_debt_consolidation       -1.930e-01  1.068e-01  -1.807  0.07076 .  
+## purpose_educational               2.629e-01  3.148e-01   0.835  0.40374    
+## purpose_home_improvement         -2.322e-01  1.578e-01  -1.471  0.14132    
+## purpose_house                    -2.170e-01  3.382e-01  -0.642  0.52098    
+## purpose_major_purchase           -4.274e-01  1.804e-01  -2.370  0.01780 *  
+## purpose_medical                   4.107e-01  2.321e-01   1.770  0.07672 .  
+## purpose_moving                   -3.382e-01  3.048e-01  -1.110  0.26720    
+## purpose_renewable_energy         -9.596e-02  6.524e-01  -0.147  0.88307    
+## purpose_small_business            6.148e-01  1.546e-01   3.977 6.97e-05 ***
+## purpose_vacation                  5.703e-01  3.210e-01   1.777  0.07560 .  
+## purpose_wedding                  -5.622e-01  2.643e-01  -2.127  0.03341 *  
+## home_ownsh_x_mort_E               1.168e+01  1.860e+02   0.063  0.94993    
+## home_ownsh_x_own_E                1.107e+01  1.860e+02   0.060  0.95252    
+## home_ownsh_x_rent_E               1.162e+01  1.860e+02   0.062  0.95019    
+## home_ownsh_x_mort_F              -1.912e-01  3.051e-01  -0.627  0.53077    
+## home_ownsh_x_own_F                2.151e-02  6.808e-01   0.032  0.97480    
+## loan_amnt_x_term_36              -3.305e-05  2.160e-05  -1.530  0.12594    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 7319.3  on 8920  degrees of freedom
+## Residual deviance: 6777.4  on 8884  degrees of freedom
+##   (1079 observations deleted due to missingness)
+## AIC: 6851.4
+## 
+## Number of Fisher Scoring iterations: 11</code></pre>
+<pre class="r"><code>#predicting default probabilities on our current dataset and store in a df
+pred_log_reg_4 &lt;- predict(logistic_reg_4, newdata = lendingclub_sample_dummied_cleaned_names, type = &quot;response&quot;)
+pred_log_reg_4_df &lt;- data.frame(pred_log_reg_4)
+
+#create a ROC curve
+ROC_logreg_4 &lt;- cbind(sample_binary_cleaned_loan_stat,pred_log_reg_4_df)
+ROC_logreg_4_clean &lt;- na.omit(ROC_logreg_4)
+PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_4_clean$pred_log_reg, weights.class0=ROC_logreg_4_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/fourth%20logistic%20reg-1.png" width="672" /></p>
+</div>
+</div>
+<div id="train-our-logistic-regression-model-on-a-testing-data-set-and-test-it-on-a-training-data-set" class="section level1">
+<h1>3. Train our logistic regression model on a testing data set and test it on a training data set</h1>
+<pre class="r"><code>#select 60% of the sample
+smp_size &lt;- floor(0.6 * nrow(lendingclub_sample_dummied_cleaned_names))
+
+#set a seed to make the sample reproductible
+set.seed(123)
+train_ind &lt;- sample(seq_len(nrow(lendingclub_sample_dummied_cleaned_names)), size = smp_size)
+
+#assign the training and the testing datasets to new dfs
+train &lt;- lendingclub_sample_dummied_cleaned_names[train_ind, ]
+test &lt;- lendingclub_sample_dummied_cleaned_names[-train_ind, ]
+
+#take the model we created before and train in on the training data
+logistic_reg_trained &lt;- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        purpose_car + purpose_credit_card + purpose_debt_consolidation + purpose_educational + purpose_home_improvement + purpose_house + purpose_major_purchase + purpose_medical + purpose_moving + purpose_renewable_energy + purpose_small_business + purpose_vacation + purpose_wedding +
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = train)
+summary(logistic_reg_trained)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = loan_stat_binary ~ loan_amnt + installment + dti + 
+##     annual_inc + term_months_36 + grade_a + grade_b + grade_c + 
+##     grade_d + grade_e + grade_f + emp_length_2_years + emp_length_2_5_years + 
+##     home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+##     verification_status_not_verified + purpose_car + purpose_credit_card + 
+##     purpose_debt_consolidation + purpose_educational + purpose_home_improvement + 
+##     purpose_house + purpose_major_purchase + purpose_medical + 
+##     purpose_moving + purpose_renewable_energy + purpose_small_business + 
+##     purpose_vacation + purpose_wedding + home_ownsh_x_mort_E + 
+##     home_ownsh_x_own_E + home_ownsh_x_rent_E + home_ownsh_x_mort_F + 
+##     home_ownsh_x_own_F + loan_amnt_x_term_36, family = binomial, 
+##     data = train)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.3534  -0.5851  -0.4609  -0.3340   3.1638  
+## 
+## Coefficients: (1 not defined because of singularities)
+##                                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                       4.603e-01  9.070e-01   0.507 0.611810    
+## loan_amnt                        -1.200e-04  7.099e-05  -1.690 0.091000 .  
+## installment                       4.278e-03  2.863e-03   1.494 0.135081    
+## dti                               3.640e-03  6.348e-03   0.573 0.566415    
+## annual_inc                       -4.607e-06  1.260e-06  -3.657 0.000256 ***
+## term_months_36                   -9.056e-01  1.808e-01  -5.010 5.45e-07 ***
+## grade_a                          -1.362e+00  4.530e-01  -3.007 0.002642 ** 
+## grade_b                          -7.825e-01  4.245e-01  -1.843 0.065278 .  
+## grade_c                          -6.027e-01  4.047e-01  -1.489 0.136449    
+## grade_d                          -3.146e-01  3.840e-01  -0.819 0.412585    
+## grade_e                          -1.403e-01  3.888e-01  -0.361 0.718266    
+## grade_f                           6.685e-02  4.245e-01   0.157 0.874877    
+## emp_length_2_years               -8.200e-02  1.119e-01  -0.733 0.463472    
+## emp_length_2_5_years             -1.985e-01  9.265e-02  -2.143 0.032142 *  
+## home_ownership_mortgage          -4.484e-01  7.983e-01  -0.562 0.574317    
+## home_ownership_own               -2.291e-01  8.079e-01  -0.284 0.776706    
+## home_ownership_rent              -5.628e-01  7.980e-01  -0.705 0.480594    
+## verification_status_not_verified  1.576e-01  8.917e-02   1.768 0.077126 .  
+## purpose_car                      -4.879e-01  2.672e-01  -1.826 0.067895 .  
+## purpose_credit_card              -2.442e-01  1.788e-01  -1.366 0.171973    
+## purpose_debt_consolidation       -4.283e-02  1.412e-01  -0.303 0.761656    
+## purpose_educational               5.989e-01  3.583e-01   1.671 0.094631 .  
+## purpose_home_improvement         -1.400e-01  2.062e-01  -0.679 0.497269    
+## purpose_house                    -4.664e-01  5.035e-01  -0.926 0.354218    
+## purpose_major_purchase           -1.138e-01  2.222e-01  -0.512 0.608645    
+## purpose_medical                   6.460e-01  2.993e-01   2.158 0.030896 *  
+## purpose_moving                   -4.281e-01  4.253e-01  -1.007 0.314045    
+## purpose_renewable_energy         -8.273e-03  7.913e-01  -0.010 0.991658    
+## purpose_small_business            7.191e-01  1.986e-01   3.620 0.000295 ***
+## purpose_vacation                  5.864e-01  4.159e-01   1.410 0.158525    
+## purpose_wedding                  -4.085e-01  3.368e-01  -1.213 0.225192    
+## home_ownsh_x_mort_E              -7.842e-02  2.666e-01  -0.294 0.768641    
+## home_ownsh_x_own_E               -1.979e-01  5.157e-01  -0.384 0.701140    
+## home_ownsh_x_rent_E                      NA         NA      NA       NA    
+## home_ownsh_x_mort_F              -8.518e-02  3.853e-01  -0.221 0.825061    
+## home_ownsh_x_own_F                9.887e-02  1.053e+00   0.094 0.925209    
+## loan_amnt_x_term_36              -3.141e-05  2.767e-05  -1.135 0.256364    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 4462.1  on 5350  degrees of freedom
+## Residual deviance: 4114.6  on 5315  degrees of freedom
+##   (649 observations deleted due to missingness)
+## AIC: 4186.6
+## 
+## Number of Fisher Scoring iterations: 5</code></pre>
+<pre class="r"><code>#use our trained model to predict default probabilities on the testing dataset
+pred_on_test &lt;- predict(logistic_reg_trained, newdata = test, type = &quot;response&quot;)
+pred_on_test_df &lt;- data.frame(pred_on_test)
+
+#isolate the binary default probabilities of the testing data set to create the ROC curve
+test_loan_stat &lt;- test[&quot;loan_stat_binary&quot;]
+
+#create the ROC curve of our trained model predicting default probabilities on the testing dataset vs the actual defaults of the testing dataset
+ROC_logreg_on_test &lt;- cbind(test_loan_stat,pred_on_test_df)
+ROC_logreg_on_test_clean &lt;- na.omit(ROC_logreg_on_test)
+
+PRROC_obj &lt;- roc.curve(scores.class0 = ROC_logreg_on_test_clean$pred_on_test, weights.class0=ROC_logreg_on_test_clean$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/training%20and%20testing%20datasets-1.png" width="672" /></p>
+</div>
+<div id="determine-the-optimal-cut-off-point-for-different-value-in-pl" class="section level1">
+<h1>4. Determine the optimal cut-off point for different value in P&amp;L</h1>
+<div id="determine-the-optimal-cut-off-point-on-the-whole-dataset-for-l-100-et-p203040" class="section level2">
+<h2>4.1. Determine the optimal cut-off point on the whole dataset for L=-100 et P={20,30,40}</h2>
+<pre class="r"><code>#select actual defaults the from training set
+training_loan_stat &lt;- train[&quot;loan_stat_binary&quot;]
+
+#predict trained model on training dataset and put the prediction in a df
+pred_on_trained &lt;- predict(logistic_reg_trained, newdata = train, type = &quot;response&quot;)
+pred_on_trained_df &lt;- data.frame(pred_on_trained)
+
+#create a first function to speed up the comparison, x being the cut-off, y the loss and x the profit
+pred_on_trained_function &lt;- function(x,y,z){
+
+  #transform the predicted default probabilities into binary default probabilities according to cut-off x
+  pred_on_trained &lt;- ifelse(pred_on_trained_df &gt; x, 1, 0)
+
+  #bind actual binary default probabilities of training set and predicted ones to later create our ROC curve
+  pred_on_trained_vs_trained &lt;- cbind(training_loan_stat,pred_on_trained)
+
+  #create our p&amp;l using a nested ifelse statement as follows:
+  
+  pred_on_trained_vs_trained$p_l &lt;- ifelse(pred_on_trained_vs_trained$loan_stat_binary == 1 &amp; pred_on_trained_vs_trained$pred_on_trained == 1,0,#if we predict the loan will default (1) and it defaults (1), then we did not invest and have a 0 p&amp;l
+                                           ifelse(pred_on_trained_vs_trained$loan_stat_binary == 0 &amp; pred_on_trained_vs_trained$pred_on_trained == 1,0,#if we predict the loan will default (1) and it does not default (0), then we did not invest and have a 0 p&amp;l (though we incur a cost of opportunity)
+                                                  ifelse(pred_on_trained_vs_trained$loan_stat_binary == 1 &amp; pred_on_trained_vs_trained$pred_on_trained == 0,y,#if we predict the loan will not default (0) and it defaults (1), then we invested and we lose y
+                                                         ifelse(pred_on_trained_vs_trained$loan_stat_binary == 0 &amp; pred_on_trained_vs_trained$pred_on_trained == 0,z,z))))#if we predict the loan will not default (0) and it does not default (0), then we invested and we make a gain of x
+
+  #clean our df with the p&amp;l from NAs      
+  pred_on_trained_vs_trained_clean &lt;- na.omit(pred_on_trained_vs_trained)
+
+  #print and paste the total p&amp;l
+  pnl &lt;- sum(pred_on_trained_vs_trained_clean$p_l)
+  print(paste(pnl))
+}#end of first function
+
+#create a second function using the first function to plot the graphs
+graph_trained_on_train_function &lt;- function(x,y){
+
+  #assign p&amp;ls for cut-offs by 0.5 increments
+  pnl_05 &lt;- pred_on_trained_function(0.05,x,y)
+  pnl_10 &lt;- pred_on_trained_function(0.1,x,y)
+  pnl_15 &lt;- pred_on_trained_function(0.15,x,y)
+  pnl_20 &lt;- pred_on_trained_function(0.2,x,y)
+  pnl_25 &lt;- pred_on_trained_function(0.25,x,y)
+  pnl_30 &lt;- pred_on_trained_function(0.3,x,y)
+  pnl_35 &lt;- pred_on_trained_function(0.35,x,y)
+  pnl_40 &lt;- pred_on_trained_function(0.40,x,y)
+  pnl_45 &lt;- pred_on_trained_function(0.45,x,y)
+  pnl_50 &lt;- pred_on_trained_function(0.50,x,y)
+  pnl_55 &lt;- pred_on_trained_function(0.55,x,y)
+  pnl_60 &lt;- pred_on_trained_function(0.60,x,y)
+  pnl_65 &lt;- pred_on_trained_function(0.65,x,y)
+  pnl_70 &lt;- pred_on_trained_function(0.70,x,y)
+  pnl_75 &lt;- pred_on_trained_function(0.75,x,y)
+  pnl_80 &lt;- pred_on_trained_function(0.80,x,y)
+  pnl_85 &lt;- pred_on_trained_function(0.85,x,y)
+  pnl_90 &lt;- pred_on_trained_function(0.90,x,y)
+  pnl_95 &lt;- pred_on_trained_function(0.95,x,y)
+  pnl_100 &lt;- pred_on_trained_function(1,x,y)
+
+  #put our inputs in a df
+  pred_on_trained_sensitivity &lt;- data.frame(cut_off = c(0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1),
+                                            pnl = c(pnl_05,pnl_10,pnl_15,pnl_20,pnl_25,pnl_30,pnl_35,pnl_40,pnl_45,pnl_50,pnl_55,pnl_60,pnl_65,pnl_70,pnl_75,pnl_80,pnl_85,pnl_90,pnl_95,pnl_100))
+
+  #set the p&amp;l df as numeric to have continuous scales on our graph
+  pred_on_trained_sensitivity$cut_off &lt;- as.numeric(pred_on_trained_sensitivity$cut_off)
+  pred_on_trained_sensitivity$pnl &lt;- as.numeric(pred_on_trained_sensitivity$pnl)
+
+  #print the tables
+  print(pred_on_trained_sensitivity)
+  
+  #plot the tables
+  ggplot(pred_on_trained_sensitivity, aes(x=cut_off,y=pnl,group = 1))+
+    geom_line(alpha=1) +
+    theme_bw() +
+    scale_y_continuous()+
+    labs (
+      title = paste(&quot;Sensitivity of P&amp;L to cut-off using the trained model on the training dataset\nwith loss =&quot;, x,&quot;and profit =&quot;,y),
+      x     = &quot;Cut-off&quot;,
+      y     = &quot;P&amp;L&quot;)
+  }#end of function 2
+
+#do a sensitivity analysis of profit by 10 increments
+graph_trained_on_train_function(-100,20)</code></pre>
+<pre><code>## [1] &quot;6640&quot;
+## [1] &quot;24740&quot;
+## [1] &quot;33180&quot;
+## [1] &quot;31100&quot;
+## [1] &quot;26320&quot;
+## [1] &quot;23720&quot;
+## [1] &quot;19900&quot;
+## [1] &quot;15460&quot;
+## [1] &quot;14220&quot;
+## [1] &quot;13640&quot;
+## [1] &quot;13440&quot;
+## [1] &quot;13020&quot;
+## [1] &quot;12820&quot;
+## [1] &quot;12820&quot;
+## [1] &quot;12820&quot;
+## [1] &quot;12820&quot;
+## [1] &quot;12820&quot;
+## [1] &quot;12820&quot;
+## [1] &quot;12820&quot;
+## [1] &quot;12820&quot;
+##    cut_off   pnl
+## 1     0.05  6640
+## 2     0.10 24740
+## 3     0.15 33180
+## 4     0.20 31100
+## 5     0.25 26320
+## 6     0.30 23720
+## 7     0.35 19900
+## 8     0.40 15460
+## 9     0.45 14220
+## 10    0.50 13640
+## 11    0.55 13440
+## 12    0.60 13020
+## 13    0.65 12820
+## 14    0.70 12820
+## 15    0.75 12820
+## 16    0.80 12820
+## 17    0.85 12820
+## 18    0.90 12820
+## 19    0.95 12820
+## 20    1.00 12820</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20trained-1.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_train_function(-100,30)</code></pre>
+<pre><code>## [1] &quot;10860&quot;
+## [1] &quot;43360&quot;
+## [1] &quot;64220&quot;
+## [1] &quot;68100&quot;
+## [1] &quot;66830&quot;
+## [1] &quot;66580&quot;
+## [1] &quot;64150&quot;
+## [1] &quot;60590&quot;
+## [1] &quot;59580&quot;
+## [1] &quot;59160&quot;
+## [1] &quot;59060&quot;
+## [1] &quot;58680&quot;
+## [1] &quot;58480&quot;
+## [1] &quot;58480&quot;
+## [1] &quot;58480&quot;
+## [1] &quot;58480&quot;
+## [1] &quot;58480&quot;
+## [1] &quot;58480&quot;
+## [1] &quot;58480&quot;
+## [1] &quot;58480&quot;
+##    cut_off   pnl
+## 1     0.05 10860
+## 2     0.10 43360
+## 3     0.15 64220
+## 4     0.20 68100
+## 5     0.25 66830
+## 6     0.30 66580
+## 7     0.35 64150
+## 8     0.40 60590
+## 9     0.45 59580
+## 10    0.50 59160
+## 11    0.55 59060
+## 12    0.60 58680
+## 13    0.65 58480
+## 14    0.70 58480
+## 15    0.75 58480
+## 16    0.80 58480
+## 17    0.85 58480
+## 18    0.90 58480
+## 19    0.95 58480
+## 20    1.00 58480</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20trained-2.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_train_function(-100,40)</code></pre>
+<pre><code>## [1] &quot;15080&quot;
+## [1] &quot;61980&quot;
+## [1] &quot;95260&quot;
+## [1] &quot;105100&quot;
+## [1] &quot;107340&quot;
+## [1] &quot;109440&quot;
+## [1] &quot;108400&quot;
+## [1] &quot;105720&quot;
+## [1] &quot;104940&quot;
+## [1] &quot;104680&quot;
+## [1] &quot;104680&quot;
+## [1] &quot;104340&quot;
+## [1] &quot;104140&quot;
+## [1] &quot;104140&quot;
+## [1] &quot;104140&quot;
+## [1] &quot;104140&quot;
+## [1] &quot;104140&quot;
+## [1] &quot;104140&quot;
+## [1] &quot;104140&quot;
+## [1] &quot;104140&quot;
+##    cut_off    pnl
+## 1     0.05  15080
+## 2     0.10  61980
+## 3     0.15  95260
+## 4     0.20 105100
+## 5     0.25 107340
+## 6     0.30 109440
+## 7     0.35 108400
+## 8     0.40 105720
+## 9     0.45 104940
+## 10    0.50 104680
+## 11    0.55 104680
+## 12    0.60 104340
+## 13    0.65 104140
+## 14    0.70 104140
+## 15    0.75 104140
+## 16    0.80 104140
+## 17    0.85 104140
+## 18    0.90 104140
+## 19    0.95 104140
+## 20    1.00 104140</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20trained-3.png" width="672" /></p>
+<pre class="r"><code>#print the ROC curve
+pred_on_trained_vs_trained &lt;- cbind(training_loan_stat,pred_on_trained)
+pred_on_trained_vs_trained &lt;- na.omit(pred_on_trained_vs_trained)
+PRROC_obj &lt;- roc.curve(scores.class0 = pred_on_trained_vs_trained$pred_on_trained, weights.class0=pred_on_trained_vs_trained$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20trained-4.png" width="672" /></p>
+</div>
+<div id="determine-the-optimal-cut-off-using-the-validation-dataset" class="section level2">
+<h2>4.2. Determine the optimal cut-off using the validation dataset</h2>
+<pre class="r"><code>#select defaults from testing set
+test_loan_stat &lt;- test[&quot;loan_stat_binary&quot;]
+
+#predict trained model on testing set and put the prediction in a df
+pred_on_test &lt;- predict(logistic_reg_trained, newdata = test, type = &quot;response&quot;)
+pred_on_test_df &lt;- data.frame(pred_on_test)
+
+#rest of the chunk is as above but using the testing set to predict default probabilities using our model trained on the traing set
+pred_on_test_function &lt;- function(x,y,z){
+
+  pred_on_test &lt;- ifelse(pred_on_test_df &gt; x, 1, 0)
+  
+  pred_on_test_vs_trained &lt;- cbind(test_loan_stat,pred_on_test)
+
+  pred_on_test_vs_trained$p_l &lt;- ifelse(pred_on_test_vs_trained$loan_stat_binary == 1 &amp; pred_on_test_vs_trained$pred_on_test == 1,0,
+                                           ifelse(pred_on_test_vs_trained$loan_stat_binary == 0 &amp; pred_on_test_vs_trained$pred_on_test == 1,0,
+                                                  ifelse(pred_on_test_vs_trained$loan_stat_binary == 1 &amp; pred_on_test_vs_trained$pred_on_test == 0,y,
+                                                         ifelse(pred_on_test_vs_trained$loan_stat_binary == 0 &amp; pred_on_test_vs_trained$pred_on_test == 0,z,z))))
+                                                  
+  pred_on_trained_vs_test_clean &lt;- na.omit(pred_on_test_vs_trained)
+
+  pnl &lt;- sum(pred_on_trained_vs_test_clean$p_l)
+
+  print(paste(pnl))
+}
+
+graph_trained_on_test_function &lt;- function(x,y){
+
+  pnl_05 &lt;- pred_on_test_function(0.05,x,y)
+  pnl_10 &lt;- pred_on_test_function(0.1,x,y)
+  pnl_15 &lt;- pred_on_test_function(0.15,x,y)
+  pnl_20 &lt;- pred_on_test_function(0.2,x,y)
+  pnl_25 &lt;- pred_on_test_function(0.25,x,y)
+  pnl_30 &lt;- pred_on_test_function(0.3,x,y)
+  pnl_35 &lt;- pred_on_test_function(0.35,x,y)
+  pnl_40 &lt;- pred_on_test_function(0.40,x,y)
+  pnl_45 &lt;- pred_on_test_function(0.45,x,y)
+  pnl_50 &lt;- pred_on_test_function(0.50,x,y)
+  pnl_55 &lt;- pred_on_test_function(0.55,x,y)
+  pnl_60 &lt;- pred_on_test_function(0.60,x,y)
+  pnl_65 &lt;- pred_on_test_function(0.65,x,y)
+  pnl_70 &lt;- pred_on_test_function(0.70,x,y)
+  pnl_75 &lt;- pred_on_test_function(0.75,x,y)
+  pnl_80 &lt;- pred_on_test_function(0.80,x,y)
+  pnl_85 &lt;- pred_on_test_function(0.85,x,y)
+  pnl_90 &lt;- pred_on_test_function(0.90,x,y)
+  pnl_95 &lt;- pred_on_test_function(0.95,x,y)
+  pnl_100 &lt;- pred_on_test_function(1,x,y)
+
+  pred_on_test_sensitivity &lt;- data.frame(cut_off = c(0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1),
+                                            pnl = c(pnl_05,pnl_10,pnl_15,pnl_20,pnl_25,pnl_30,pnl_35,pnl_40,pnl_45,pnl_50,pnl_55,pnl_60,pnl_65,pnl_70,pnl_75,pnl_80,pnl_85,pnl_90,pnl_95,pnl_100))
+
+  pred_on_test_sensitivity$cut_off &lt;- as.numeric(pred_on_test_sensitivity$cut_off)
+  pred_on_test_sensitivity$pnl &lt;- as.numeric(pred_on_test_sensitivity$pnl)
+
+  print(pred_on_test_sensitivity)
+  
+  ggplot(pred_on_test_sensitivity, aes(x=cut_off,y=pnl,group = 1))+
+    geom_line(alpha=1) +
+    theme_bw() +
+    scale_y_continuous()+
+    labs (
+      title = paste(&quot;Sensitivity of P&amp;L to cut-off using the trained model on the testing dataset\nwith loss =&quot;, x,&quot;and profit =&quot;,y),
+      x     = &quot;Cut-off&quot;,
+      y     = &quot;P&amp;L&quot;)
+}
+
+graph_trained_on_test_function(-100,20)</code></pre>
+<pre><code>## [1] &quot;4180&quot;
+## [1] &quot;15160&quot;
+## [1] &quot;22060&quot;
+## [1] &quot;21980&quot;
+## [1] &quot;19580&quot;
+## [1] &quot;17580&quot;
+## [1] &quot;16140&quot;
+## [1] &quot;14440&quot;
+## [1] &quot;13900&quot;
+## [1] &quot;13280&quot;
+## [1] &quot;13000&quot;
+## [1] &quot;12720&quot;
+## [1] &quot;12780&quot;
+## [1] &quot;12680&quot;
+## [1] &quot;12600&quot;
+## [1] &quot;12600&quot;
+## [1] &quot;12600&quot;
+## [1] &quot;12600&quot;
+## [1] &quot;12600&quot;
+## [1] &quot;12600&quot;
+##    cut_off   pnl
+## 1     0.05  4180
+## 2     0.10 15160
+## 3     0.15 22060
+## 4     0.20 21980
+## 5     0.25 19580
+## 6     0.30 17580
+## 7     0.35 16140
+## 8     0.40 14440
+## 9     0.45 13900
+## 10    0.50 13280
+## 11    0.55 13000
+## 12    0.60 12720
+## 13    0.65 12780
+## 14    0.70 12680
+## 15    0.75 12600
+## 16    0.80 12600
+## 17    0.85 12600
+## 18    0.90 12600
+## 19    0.95 12600
+## 20    1.00 12600</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20test-1.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_test_function(-100,30)</code></pre>
+<pre><code>## [1] &quot;6920&quot;
+## [1] &quot;27240&quot;
+## [1] &quot;42740&quot;
+## [1] &quot;46770&quot;
+## [1] &quot;46570&quot;
+## [1] &quot;46120&quot;
+## [1] &quot;45910&quot;
+## [1] &quot;44810&quot;
+## [1] &quot;44550&quot;
+## [1] &quot;43970&quot;
+## [1] &quot;43750&quot;
+## [1] &quot;43480&quot;
+## [1] &quot;43570&quot;
+## [1] &quot;43470&quot;
+## [1] &quot;43400&quot;
+## [1] &quot;43400&quot;
+## [1] &quot;43400&quot;
+## [1] &quot;43400&quot;
+## [1] &quot;43400&quot;
+## [1] &quot;43400&quot;
+##    cut_off   pnl
+## 1     0.05  6920
+## 2     0.10 27240
+## 3     0.15 42740
+## 4     0.20 46770
+## 5     0.25 46570
+## 6     0.30 46120
+## 7     0.35 45910
+## 8     0.40 44810
+## 9     0.45 44550
+## 10    0.50 43970
+## 11    0.55 43750
+## 12    0.60 43480
+## 13    0.65 43570
+## 14    0.70 43470
+## 15    0.75 43400
+## 16    0.80 43400
+## 17    0.85 43400
+## 18    0.90 43400
+## 19    0.95 43400
+## 20    1.00 43400</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20test-2.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_test_function(-100,40)</code></pre>
+<pre><code>## [1] &quot;9660&quot;
+## [1] &quot;39320&quot;
+## [1] &quot;63420&quot;
+## [1] &quot;71560&quot;
+## [1] &quot;73560&quot;
+## [1] &quot;74660&quot;
+## [1] &quot;75680&quot;
+## [1] &quot;75180&quot;
+## [1] &quot;75200&quot;
+## [1] &quot;74660&quot;
+## [1] &quot;74500&quot;
+## [1] &quot;74240&quot;
+## [1] &quot;74360&quot;
+## [1] &quot;74260&quot;
+## [1] &quot;74200&quot;
+## [1] &quot;74200&quot;
+## [1] &quot;74200&quot;
+## [1] &quot;74200&quot;
+## [1] &quot;74200&quot;
+## [1] &quot;74200&quot;
+##    cut_off   pnl
+## 1     0.05  9660
+## 2     0.10 39320
+## 3     0.15 63420
+## 4     0.20 71560
+## 5     0.25 73560
+## 6     0.30 74660
+## 7     0.35 75680
+## 8     0.40 75180
+## 9     0.45 75200
+## 10    0.50 74660
+## 11    0.55 74500
+## 12    0.60 74240
+## 13    0.65 74360
+## 14    0.70 74260
+## 15    0.75 74200
+## 16    0.80 74200
+## 17    0.85 74200
+## 18    0.90 74200
+## 19    0.95 74200
+## 20    1.00 74200</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20test-3.png" width="672" /></p>
+<pre class="r"><code>pred_on_test_vs_trained &lt;- cbind(test_loan_stat,pred_on_test)
+pred_on_test_vs_trained &lt;- na.omit(pred_on_test_vs_trained)
+
+PRROC_obj &lt;- roc.curve(scores.class0 = pred_on_test_vs_trained$pred_on_test, weights.class0=pred_on_test_vs_trained$loan_stat_binary,
+                       curve=TRUE)
+plot(PRROC_obj)</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensitivity%20trained%20on%20test-4.png" width="672" /></p>
+</div>
+<div id="determine-the-optimal-cut-off-point-for-l--50-and-p-monthly-installment-number-of-months-loan-amount---1" class="section level2">
+<h2>4.3. Determine the optimal cut-off point for L = -50% and P = monthly installment * number of months / loan amount - 1</h2>
+<pre class="r"><code>#select all the terms used to compute the new return
+test_loan_excerpt &lt;- test[c(&quot;term_months&quot;,&quot;loan_amnt&quot;,&quot;installment&quot;,&quot;loan_stat_binary&quot;)]
+
+#compute the return per loan if no default
+test_loan_excerpt$return &lt;- ((test_loan_excerpt$installment * test_loan_excerpt$term_months)/test_loan_excerpt$loan_amnt)-1
+
+#as in the two chunks above
+pred_on_test_new &lt;- predict(logistic_reg_trained, newdata = test, type = &quot;response&quot;)
+pred_on_test_new_df &lt;- data.frame(pred_on_test_new)
+
+#create a first function to speed up the comparison, x being the cut-off and y the loss in terms of return (note: z is removed since the return is determined by the formula created above)
+pred_on_test_new_function &lt;- function(x,y){
+
+  pred_on_test_new &lt;- ifelse(pred_on_test_new_df &gt; x, 1, 0)
+
+  pred_on_test_vs_trained_new &lt;- cbind(test_loan_excerpt,pred_on_test_new)
+  pred_on_test_vs_trained_new$roi &lt;- ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 1 &amp; pred_on_test_vs_trained_new$pred_on_test_new == 1,0,
+                                           ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 0 &amp; pred_on_test_vs_trained_new$pred_on_test_new == 1,0,
+                                                  ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 1 &amp; pred_on_test_vs_trained_new$pred_on_test_new == 0,y,
+                                                         ifelse(pred_on_test_vs_trained_new$loan_stat_binary == 0 &amp; pred_on_test_vs_trained_new$pred_on_test_new == 0,pred_on_test_vs_trained_new$return,pred_on_test_vs_trained_new$return))))#now using the formula for returns for loans we invested in that did not default
+  
+  #clean the data                                       
+  pred_on_test_vs_trained_new_clean &lt;- na.omit(pred_on_test_vs_trained_new)
+
+  #we invest one dollar in each loan, so the total return is simply going to be the sum of the returns
+  pnl &lt;- sum(pred_on_test_vs_trained_new_clean$roi)
+
+  print(paste(pnl))
+}
+
+#rest is as in the two chunk above
+graph_trained_on_test_function &lt;- function(x){
+
+  pnl_05 &lt;- pred_on_test_new_function(0.05,x)
+  pnl_10 &lt;- pred_on_test_new_function(0.1,x)
+  pnl_15 &lt;- pred_on_test_new_function(0.15,x)
+  pnl_20 &lt;- pred_on_test_new_function(0.2,x)
+  pnl_25 &lt;- pred_on_test_new_function(0.25,x)
+  pnl_30 &lt;- pred_on_test_new_function(0.3,x)
+  pnl_35 &lt;- pred_on_test_new_function(0.35,x)
+  pnl_40 &lt;- pred_on_test_new_function(0.40,x)
+  pnl_45 &lt;- pred_on_test_new_function(0.45,x)
+  pnl_50 &lt;- pred_on_test_new_function(0.50,x)
+  pnl_55 &lt;- pred_on_test_new_function(0.55,x)
+  pnl_60 &lt;- pred_on_test_new_function(0.60,x)
+  pnl_65 &lt;- pred_on_test_new_function(0.65,x)
+  pnl_70 &lt;- pred_on_test_new_function(0.70,x)
+  pnl_75 &lt;- pred_on_test_new_function(0.75,x)
+  pnl_80 &lt;- pred_on_test_new_function(0.80,x)
+  pnl_85 &lt;- pred_on_test_new_function(0.85,x)
+  pnl_90 &lt;- pred_on_test_new_function(0.90,x)
+  pnl_95 &lt;- pred_on_test_new_function(0.95,x)
+  pnl_100 &lt;- pred_on_test_new_function(1,x)
+
+  pred_on_test_new_sensitivity &lt;- data.frame(cut_off = c(0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1),
+                                            pnl = c(pnl_05,pnl_10,pnl_15,pnl_20,pnl_25,pnl_30,pnl_35,pnl_40,pnl_45,pnl_50,pnl_55,pnl_60,pnl_65,pnl_70,pnl_75,pnl_80,pnl_85,pnl_90,pnl_95,pnl_100))
+
+  pred_on_test_new_sensitivity$cut_off &lt;- as.numeric(pred_on_test_new_sensitivity$cut_off)
+  pred_on_test_new_sensitivity$pnl &lt;- as.numeric(pred_on_test_new_sensitivity$pnl)
+  
+  print(pred_on_test_new_sensitivity)
+
+  ggplot(pred_on_test_new_sensitivity, aes(x=cut_off,y=pnl,group = 1))+
+    geom_line(alpha=1) +
+    theme_bw() +
+    labs (
+      title = paste(&quot;Sensitivity of P&amp;L to cut-off using the trained model on the testing dataset\nwith loss =&quot;, x),
+      x     = &quot;Cut-off&quot;,
+      y     = &quot;P&amp;L&quot;)
+}
+
+#print the output graphs for different loss rate by 0.25 increments
+graph_trained_on_test_function(-0)</code></pre>
+<pre><code>## [1] &quot;33.6730321678588&quot;
+## [1] &quot;172.897344048426&quot;
+## [1] &quot;355.18482226929&quot;
+## [1] &quot;468.393465402586&quot;
+## [1] &quot;545.427355090444&quot;
+## [1] &quot;612.888492357322&quot;
+## [1] &quot;670.533142373857&quot;
+## [1] &quot;700.89653737136&quot;
+## [1] &quot;715.450138611956&quot;
+## [1] &quot;717.214802611956&quot;
+## [1] &quot;720.049553602631&quot;
+## [1] &quot;720.758945383453&quot;
+## [1] &quot;722.313979389898&quot;
+## [1] &quot;722.313979389898&quot;
+## [1] &quot;722.870036532755&quot;
+## [1] &quot;722.870036532755&quot;
+## [1] &quot;722.870036532755&quot;
+## [1] &quot;722.870036532755&quot;
+## [1] &quot;722.870036532755&quot;
+## [1] &quot;722.870036532755&quot;
+##    cut_off       pnl
+## 1     0.05  33.67303
+## 2     0.10 172.89734
+## 3     0.15 355.18482
+## 4     0.20 468.39347
+## 5     0.25 545.42736
+## 6     0.30 612.88849
+## 7     0.35 670.53314
+## 8     0.40 700.89654
+## 9     0.45 715.45014
+## 10    0.50 717.21480
+## 11    0.55 720.04955
+## 12    0.60 720.75895
+## 13    0.65 722.31398
+## 14    0.70 722.31398
+## 15    0.75 722.87004
+## 16    0.80 722.87004
+## 17    0.85 722.87004
+## 18    0.90 722.87004
+## 19    0.95 722.87004
+## 20    1.00 722.87004</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensivity%20trained%20on%20test%20with%20realistic%20return-1.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_test_function(-0.25)</code></pre>
+<pre><code>## [1] &quot;30.4230321678588&quot;
+## [1] &quot;150.397344048426&quot;
+## [1] &quot;306.93482226929&quot;
+## [1] &quot;399.393465402586&quot;
+## [1] &quot;459.427355090444&quot;
+## [1] &quot;514.138492357322&quot;
+## [1] &quot;562.033142373857&quot;
+## [1] &quot;585.14653737136&quot;
+## [1] &quot;596.950138611956&quot;
+## [1] &quot;596.964802611956&quot;
+## [1] &quot;598.799553602631&quot;
+## [1] &quot;598.758945383453&quot;
+## [1] &quot;600.313979389898&quot;
+## [1] &quot;600.063979389898&quot;
+## [1] &quot;600.370036532755&quot;
+## [1] &quot;600.370036532755&quot;
+## [1] &quot;600.370036532755&quot;
+## [1] &quot;600.370036532755&quot;
+## [1] &quot;600.370036532755&quot;
+## [1] &quot;600.370036532755&quot;
+##    cut_off       pnl
+## 1     0.05  30.42303
+## 2     0.10 150.39734
+## 3     0.15 306.93482
+## 4     0.20 399.39347
+## 5     0.25 459.42736
+## 6     0.30 514.13849
+## 7     0.35 562.03314
+## 8     0.40 585.14654
+## 9     0.45 596.95014
+## 10    0.50 596.96480
+## 11    0.55 598.79955
+## 12    0.60 598.75895
+## 13    0.65 600.31398
+## 14    0.70 600.06398
+## 15    0.75 600.37004
+## 16    0.80 600.37004
+## 17    0.85 600.37004
+## 18    0.90 600.37004
+## 19    0.95 600.37004
+## 20    1.00 600.37004</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensivity%20trained%20on%20test%20with%20realistic%20return-2.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_test_function(-0.5)</code></pre>
+<pre><code>## [1] &quot;27.1730321678588&quot;
+## [1] &quot;127.897344048426&quot;
+## [1] &quot;258.68482226929&quot;
+## [1] &quot;330.393465402586&quot;
+## [1] &quot;373.427355090444&quot;
+## [1] &quot;415.388492357322&quot;
+## [1] &quot;453.533142373857&quot;
+## [1] &quot;469.39653737136&quot;
+## [1] &quot;478.450138611956&quot;
+## [1] &quot;476.714802611956&quot;
+## [1] &quot;477.549553602631&quot;
+## [1] &quot;476.758945383453&quot;
+## [1] &quot;478.313979389897&quot;
+## [1] &quot;477.813979389897&quot;
+## [1] &quot;477.870036532755&quot;
+## [1] &quot;477.870036532755&quot;
+## [1] &quot;477.870036532755&quot;
+## [1] &quot;477.870036532755&quot;
+## [1] &quot;477.870036532755&quot;
+## [1] &quot;477.870036532755&quot;
+##    cut_off       pnl
+## 1     0.05  27.17303
+## 2     0.10 127.89734
+## 3     0.15 258.68482
+## 4     0.20 330.39347
+## 5     0.25 373.42736
+## 6     0.30 415.38849
+## 7     0.35 453.53314
+## 8     0.40 469.39654
+## 9     0.45 478.45014
+## 10    0.50 476.71480
+## 11    0.55 477.54955
+## 12    0.60 476.75895
+## 13    0.65 478.31398
+## 14    0.70 477.81398
+## 15    0.75 477.87004
+## 16    0.80 477.87004
+## 17    0.85 477.87004
+## 18    0.90 477.87004
+## 19    0.95 477.87004
+## 20    1.00 477.87004</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensivity%20trained%20on%20test%20with%20realistic%20return-3.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_test_function(-0.75)</code></pre>
+<pre><code>## [1] &quot;23.9230321678588&quot;
+## [1] &quot;105.397344048426&quot;
+## [1] &quot;210.43482226929&quot;
+## [1] &quot;261.393465402586&quot;
+## [1] &quot;287.427355090444&quot;
+## [1] &quot;316.638492357322&quot;
+## [1] &quot;345.033142373857&quot;
+## [1] &quot;353.64653737136&quot;
+## [1] &quot;359.950138611956&quot;
+## [1] &quot;356.464802611956&quot;
+## [1] &quot;356.299553602631&quot;
+## [1] &quot;354.758945383453&quot;
+## [1] &quot;356.313979389897&quot;
+## [1] &quot;355.563979389897&quot;
+## [1] &quot;355.370036532755&quot;
+## [1] &quot;355.370036532755&quot;
+## [1] &quot;355.370036532755&quot;
+## [1] &quot;355.370036532755&quot;
+## [1] &quot;355.370036532755&quot;
+## [1] &quot;355.370036532755&quot;
+##    cut_off       pnl
+## 1     0.05  23.92303
+## 2     0.10 105.39734
+## 3     0.15 210.43482
+## 4     0.20 261.39347
+## 5     0.25 287.42736
+## 6     0.30 316.63849
+## 7     0.35 345.03314
+## 8     0.40 353.64654
+## 9     0.45 359.95014
+## 10    0.50 356.46480
+## 11    0.55 356.29955
+## 12    0.60 354.75895
+## 13    0.65 356.31398
+## 14    0.70 355.56398
+## 15    0.75 355.37004
+## 16    0.80 355.37004
+## 17    0.85 355.37004
+## 18    0.90 355.37004
+## 19    0.95 355.37004
+## 20    1.00 355.37004</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensivity%20trained%20on%20test%20with%20realistic%20return-4.png" width="672" /></p>
+<pre class="r"><code>graph_trained_on_test_function(-1)</code></pre>
+<pre><code>## [1] &quot;20.6730321678588&quot;
+## [1] &quot;82.8973440484257&quot;
+## [1] &quot;162.18482226929&quot;
+## [1] &quot;192.393465402586&quot;
+## [1] &quot;201.427355090444&quot;
+## [1] &quot;217.888492357322&quot;
+## [1] &quot;236.533142373857&quot;
+## [1] &quot;237.89653737136&quot;
+## [1] &quot;241.450138611956&quot;
+## [1] &quot;236.214802611956&quot;
+## [1] &quot;235.049553602631&quot;
+## [1] &quot;232.758945383453&quot;
+## [1] &quot;234.313979389898&quot;
+## [1] &quot;233.313979389898&quot;
+## [1] &quot;232.870036532755&quot;
+## [1] &quot;232.870036532755&quot;
+## [1] &quot;232.870036532755&quot;
+## [1] &quot;232.870036532755&quot;
+## [1] &quot;232.870036532755&quot;
+## [1] &quot;232.870036532755&quot;
+##    cut_off       pnl
+## 1     0.05  20.67303
+## 2     0.10  82.89734
+## 3     0.15 162.18482
+## 4     0.20 192.39347
+## 5     0.25 201.42736
+## 6     0.30 217.88849
+## 7     0.35 236.53314
+## 8     0.40 237.89654
+## 9     0.45 241.45014
+## 10    0.50 236.21480
+## 11    0.55 235.04955
+## 12    0.60 232.75895
+## 13    0.65 234.31398
+## 14    0.70 233.31398
+## 15    0.75 232.87004
+## 16    0.80 232.87004
+## 17    0.85 232.87004
+## 18    0.90 232.87004
+## 19    0.95 232.87004
+## 20    1.00 232.87004</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/sensivity%20trained%20on%20test%20with%20realistic%20return-5.png" width="672" /></p>
+</div>
+</div>
+<div id="improve-the-logistic-regression-model-using-another-dataset" class="section level1">
+<h1>5. Improve the logistic regression model using another dataset</h1>
+<div id="format-the-new-dataset" class="section level2">
+<h2>5.1. Format the new dataset</h2>
+<pre class="r"><code>#read the assessment data
+assessment_data &lt;- read_csv((here::here(&quot;C:/Users/hadri/Desktop/R Folder/website/content/data/assessment_raw_data.csv&quot;)))
+
+#recode the categorical variables as we did for the workshop dataset
+assessment_data$emp_length &lt;- recode(assessment_data$emp_length, &#39;&lt; 1 year&#39; = &#39;&lt; 2 years&#39;, &#39;1 year&#39; = &#39;&lt; 2 years&#39;, &#39;2 years&#39; = &#39;2-5 years&#39;, &#39;3 years&#39; = &#39;2-5 years&#39;, &#39;4 years&#39; = &#39;2-5 years&#39;, &#39;5 years&#39; = &#39;2-5 years&#39;, &#39;6 years&#39; = &#39;&gt; 5 years&#39;,&#39;7 years&#39; = &#39;&gt; 5 years&#39;,&#39;8 years&#39; = &#39;&gt; 5 years&#39;,&#39;9 years&#39; = &#39;&gt; 5 years&#39;,&#39;10+ years&#39; = &#39;&gt; 5 years&#39;)
+assessment_data$delinq_2yrs &lt;- recode(assessment_data$delinq_2yrs, &#39;0&#39; = &#39;&lt; 2&#39;, &#39;1&#39; = &#39;&lt; 2&#39;, &#39;2&#39; = &#39;2-5&#39;, &#39;3&#39; = &#39;2-5&#39;, &#39;4&#39; = &#39;2-5&#39;, &#39;5&#39; = &#39;2-5&#39;, &#39;6&#39; = &#39;&gt; 5&#39;,&#39;7&#39; = &#39;&gt; 5&#39;,&#39;8&#39; = &#39;&gt; 5&#39;,&#39;9&#39; = &#39;&gt; 5&#39;)
+assessment_data$verification_status &lt;- recode(assessment_data$verification_status, &#39;Source Verified&#39; = &#39;Verified&#39;, &#39;Verified&#39; = &#39;Verified&#39;, &#39;Not Verified&#39; = &#39;Not Verified&#39;)
+
+#create the same dummies as in the workshop dataset
+assessment_data_dummied &lt;- dummy_cols(assessment_data, select_columns = c(&#39;term (months)&#39;,&#39;grade&#39;,&#39;emp_length&#39;,&#39;home_ownership&#39;,&#39;verification_status&#39;))
+
+#delete the useless dummies
+drops &lt;- c(&quot;term (months)_60&quot;,&quot;term (months)_NA&quot;,&quot;grade_G&quot;,&quot;grade_NA&quot;,&quot;emp_length_&gt; 5 years&quot;,&quot;emp_length_n/a&quot;,&quot;emp_length_NA&quot;,&quot;home_ownership_OTHER&quot;,&quot;home_ownership_NA&quot;,&quot;verification_status_Verified&quot;,&quot;verification_status_NA&quot;)
+assessment_data_dummied_cleaned &lt;- assessment_data_dummied[ , !(names(assessment_data_dummied) %in% drops)]
+assessment_data_dummied_cleaned_names &lt;- clean_names(assessment_data_dummied_cleaned)
+
+#add our interaction terms of low grades * home ownership
+assessment_data_dummied_cleaned_names$home_ownsh_x_mort_E &lt;- assessment_data_dummied_cleaned_names$home_ownership_mortgage * assessment_data_dummied_cleaned_names$grade_e
+assessment_data_dummied_cleaned_names$home_ownsh_x_own_E &lt;- assessment_data_dummied_cleaned_names$home_ownership_own * assessment_data_dummied_cleaned_names$grade_e
+assessment_data_dummied_cleaned_names$home_ownsh_x_rent_E &lt;- assessment_data_dummied_cleaned_names$home_ownership_rent * assessment_data_dummied_cleaned_names$grade_e
+assessment_data_dummied_cleaned_names$home_ownsh_x_mort_F &lt;- assessment_data_dummied_cleaned_names$home_ownership_mortgage * assessment_data_dummied_cleaned_names$grade_f
+assessment_data_dummied_cleaned_names$home_ownsh_x_own_F &lt;- assessment_data_dummied_cleaned_names$home_ownership_own * assessment_data_dummied_cleaned_names$grade_f
+assessment_data_dummied_cleaned_names$home_ownsh_x_rent_F &lt;- assessment_data_dummied_cleaned_names$home_ownership_rent * assessment_data_dummied_cleaned_names$grade_f
+
+#add our interaction term of loan term * loan amount
+assessment_data_dummied_cleaned_names$loan_amnt_x_term_36 &lt;- assessment_data_dummied_cleaned_names$loan_amnt * assessment_data_dummied_cleaned_names$term_months_36
+
+colnames(assessment_data_dummied_cleaned_names)</code></pre>
+<pre><code>##  [1] &quot;loan_number&quot;                      &quot;int_rate&quot;                        
+##  [3] &quot;loan_amnt&quot;                        &quot;term_months&quot;                     
+##  [5] &quot;installment&quot;                      &quot;dti&quot;                             
+##  [7] &quot;delinq_2yrs&quot;                      &quot;annual_inc&quot;                      
+##  [9] &quot;grade&quot;                            &quot;emp_title&quot;                       
+## [11] &quot;emp_length&quot;                       &quot;home_ownership&quot;                  
+## [13] &quot;verification_status&quot;              &quot;issue_d&quot;                         
+## [15] &quot;invest&quot;                           &quot;term_months_36&quot;                  
+## [17] &quot;grade_a&quot;                          &quot;grade_b&quot;                         
+## [19] &quot;grade_c&quot;                          &quot;grade_d&quot;                         
+## [21] &quot;grade_e&quot;                          &quot;grade_f&quot;                         
+## [23] &quot;emp_length_2_years&quot;               &quot;emp_length_2_5_years&quot;            
+## [25] &quot;home_ownership_mortgage&quot;          &quot;home_ownership_own&quot;              
+## [27] &quot;home_ownership_rent&quot;              &quot;verification_status_not_verified&quot;
+## [29] &quot;home_ownsh_x_mort_E&quot;              &quot;home_ownsh_x_own_E&quot;              
+## [31] &quot;home_ownsh_x_rent_E&quot;              &quot;home_ownsh_x_mort_F&quot;             
+## [33] &quot;home_ownsh_x_own_F&quot;               &quot;home_ownsh_x_rent_F&quot;             
+## [35] &quot;loan_amnt_x_term_36&quot;</code></pre>
+</div>
+<div id="fit-the-best-model-on-that-new-dataset" class="section level2">
+<h2>5.2. Fit the best model on that new dataset</h2>
+<pre class="r"><code>#train our latest model on the lending club sample used in the workshop (note: we did not use the purpose variables since informatiom about purposes was not available)
+logistic_reg_assessment_data &lt;- glm(loan_stat_binary ~ 
+                        loan_amnt + 
+                        installment + 
+                        dti +
+                        annual_inc +
+                        term_months_36 + 
+                        grade_a + grade_b + grade_c + grade_d + grade_e + grade_f + 
+                        emp_length_2_years + emp_length_2_5_years + 
+                        home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+                        verification_status_not_verified + 
+                        home_ownsh_x_mort_E + home_ownsh_x_own_E + home_ownsh_x_rent_E +
+                        home_ownsh_x_mort_F + home_ownsh_x_own_F +
+                        loan_amnt_x_term_36,
+                        family = binomial,
+                        data = lendingclub_sample_dummied_cleaned_names)
+summary(logistic_reg_assessment_data)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = loan_stat_binary ~ loan_amnt + installment + dti + 
+##     annual_inc + term_months_36 + grade_a + grade_b + grade_c + 
+##     grade_d + grade_e + grade_f + emp_length_2_years + emp_length_2_5_years + 
+##     home_ownership_mortgage + home_ownership_own + home_ownership_rent + 
+##     verification_status_not_verified + home_ownsh_x_mort_E + 
+##     home_ownsh_x_own_E + home_ownsh_x_rent_E + home_ownsh_x_mort_F + 
+##     home_ownsh_x_own_F + loan_amnt_x_term_36, family = binomial, 
+##     data = lendingclub_sample_dummied_cleaned_names)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.3665  -0.5902  -0.4706  -0.3475   3.5454  
+## 
+## Coefficients:
+##                                    Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)                       2.949e-01  7.045e-01   0.419 0.675480    
+## loan_amnt                        -8.800e-05  5.535e-05  -1.590 0.111826    
+## installment                       3.432e-03  2.230e-03   1.539 0.123691    
+## dti                               5.194e-03  4.864e-03   1.068 0.285630    
+## annual_inc                       -6.391e-06  1.053e-06  -6.072 1.27e-09 ***
+## term_months_36                   -6.362e-01  1.393e-01  -4.568 4.92e-06 ***
+## grade_a                          -1.740e+00  3.478e-01  -5.003 5.65e-07 ***
+## grade_b                          -1.174e+00  3.250e-01  -3.611 0.000305 ***
+## grade_c                          -9.088e-01  3.099e-01  -2.932 0.003364 ** 
+## grade_d                          -6.168e-01  2.937e-01  -2.100 0.035703 *  
+## grade_e                          -1.186e+01  1.872e+02  -0.063 0.949499    
+## grade_f                          -2.097e-01  3.275e-01  -0.640 0.522042    
+## emp_length_2_years               -9.601e-02  8.759e-02  -1.096 0.273026    
+## emp_length_2_5_years             -1.434e-01  7.152e-02  -2.004 0.045022 *  
+## home_ownership_mortgage          -1.604e-01  6.320e-01  -0.254 0.799594    
+## home_ownership_own                3.761e-02  6.387e-01   0.059 0.953045    
+## home_ownership_rent              -2.813e-01  6.309e-01  -0.446 0.655649    
+## verification_status_not_verified  7.909e-02  6.915e-02   1.144 0.252769    
+## home_ownsh_x_mort_E               1.141e+01  1.872e+02   0.061 0.951406    
+## home_ownsh_x_own_E                1.079e+01  1.872e+02   0.058 0.954059    
+## home_ownsh_x_rent_E               1.133e+01  1.872e+02   0.061 0.951755    
+## home_ownsh_x_mort_F              -1.829e-01  3.028e-01  -0.604 0.545857    
+## home_ownsh_x_own_F                1.893e-01  6.681e-01   0.283 0.776897    
+## loan_amnt_x_term_36              -3.002e-05  2.150e-05  -1.397 0.162544    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 7319.3  on 8920  degrees of freedom
+## Residual deviance: 6846.0  on 8897  degrees of freedom
+##   (1079 observations deleted due to missingness)
+## AIC: 6894
+## 
+## Number of Fisher Scoring iterations: 11</code></pre>
+<pre class="r"><code>#use this model to predict the default probabilities on the assessment data set and store in a df
+pred_logistic_reg_assessment_data &lt;- predict(logistic_reg_assessment_data, newdata = assessment_data_dummied_cleaned_names, type = &quot;response&quot;)
+pred_logistic_reg_assessment_data_df &lt;- data.frame(pred_logistic_reg_assessment_data)
+
+#add a column in which the return per loan if no default is computed
+assessment_data_dummied_cleaned_names_excerpt &lt;- assessment_data_dummied_cleaned_names[c(&quot;term_months&quot;,&quot;loan_amnt&quot;,&quot;installment&quot;)]
+assessment_data_dummied_cleaned_names_excerpt$return_no_def &lt;- ((assessment_data_dummied_cleaned_names$installment * assessment_data_dummied_cleaned_names$term_months)/assessment_data_dummied_cleaned_names$loan_amnt)-1
+
+#create a df with the loan number, the predicted default probability and the return if no default
+pred_logistic_reg_assessment_data_df_complete &lt;- cbind(assessment_data_dummied_cleaned_names$loan_number,pred_logistic_reg_assessment_data_df,assessment_data_dummied_cleaned_names_excerpt$return_no_def)
+
+#rename the columns with shorter names
+names(pred_logistic_reg_assessment_data_df_complete)[1] &lt;- &quot;loan_nb&quot;
+names(pred_logistic_reg_assessment_data_df_complete)[2] &lt;- &quot;predicted_default_prob&quot;
+names(pred_logistic_reg_assessment_data_df_complete)[3] &lt;- &quot;return_no_default&quot;
+
+#plot the graph of return if no default vs default probability to assess the consistency of our model visually (we would expect higher default probability as the return increases)
+ggplot(pred_logistic_reg_assessment_data_df_complete, aes(x=predicted_default_prob,y=return_no_default,group = 1))+
+  geom_point(alpha=1) +
+  theme_bw() +
+  scale_y_continuous()+
+  labs (
+    title = paste(&quot;Probability of default VS return if no default&quot;),
+    x     = &quot;Probability of default&quot;,
+    y     = &quot;Return if no default&quot;) #changing y-axis label to sentence case</code></pre>
+<p><img src="/projects/CopyOflogistic_reg_files/figure-html/using%20best%20model%20on%20assessment%20data-1.png" width="672" /></p>
+</div>
+<div id="use-our-best-model-to-compute-the-pl-on-the-new-dataset" class="section level2">
+<h2>5.3. Use our best model to compute the P&amp;L on the new dataset</h2>
+<pre class="r"><code>#create a column with binary predicted default values based on the cut7-off
+pred_logistic_reg_assessment_data_df_complete$predicted_default_binary &lt;- ifelse(pred_logistic_reg_assessment_data_df_complete$predicted_default_prob &gt; 0.2, 1, 0)
+
+#create a pnl column replacing the binary default values by their pnl
+pred_logistic_reg_assessment_data_df_complete$pnl &lt;- ifelse(pred_logistic_reg_assessment_data_df_complete$predicted_default_binary == 1,-0.5,pred_logistic_reg_assessment_data_df_complete$return_no_default)
+
+#clean the obtained dataframe                                                  
+pred_logistic_reg_assessment_data_df_complete &lt;- na.omit(pred_logistic_reg_assessment_data_df_complete)
+
+#create a new column with another selection criterion to select the loans: the inverse of the default probability * the return -&gt; hence the loans with the highest score will be those with the lowest default probability and the highest return
+pred_logistic_reg_assessment_data_df_complete$criterion &lt;- (1/pred_logistic_reg_assessment_data_df_complete$predicted_default_prob) * (pred_logistic_reg_assessment_data_df_complete$return_no_default)
+  
+#arrange the table by pnl using the predicted returns by our model
+pred_logistic_reg_assessment_data_df_complete_ordered_by_pnl &lt;- arrange(pred_logistic_reg_assessment_data_df_complete,desc(pnl))
+  
+#print the first 200 loans by pnl which would be the ones we would invest in
+top_200_pnl &lt;- head(pred_logistic_reg_assessment_data_df_complete_ordered_by_pnl,200)
+  by_pnl_total_pnl &lt;- sum(top_200_pnl$pnl)
+  by_pnl_total_pnl</code></pre>
+<pre><code>## [1] 66.52793</code></pre>
+<pre class="r"><code>print(top_200_pnl)</code></pre>
+<pre><code>##      loan_nb predicted_default_prob return_no_default predicted_default_binary
+## 1334    1334           9.176140e-02         0.6233333                        0
+## 715      715           1.537831e-01         0.6117647                        0
+## 11        11           1.888956e-01         0.5702857                        0
+## 592      592           1.878825e-01         0.5445714                        0
+## 208      208           1.796722e-01         0.5200000                        0
+## 784      784           1.900901e-01         0.5200000                        0
+## 65        65           2.249236e-02         0.5000000                        0
+## 146      146           1.820747e-01         0.4880000                        0
+## 259      259           1.343726e-01         0.4863636                        0
+## 546      546           1.923903e-01         0.4840000                        0
+## 377      377           1.920844e-01         0.4592000                        0
+## 135      135           1.471661e-01         0.4571429                        0
+## 685      685           1.805206e-01         0.4566667                        0
+## 480      480           1.892437e-01         0.4447368                        0
+## 110      110           1.819031e-01         0.4371429                        0
+## 847      847           1.860440e-01         0.4370000                        0
+## 691      691           1.815626e-01         0.4357143                        0
+## 465      465           1.630210e-01         0.4352000                        0
+## 378      378           1.605079e-01         0.4350000                        0
+## 153      153           1.983228e-01         0.4342857                        0
+## 1158    1158           1.971518e-01         0.4335878                        0
+## 1738    1738           1.656487e-01         0.4333333                        0
+## 739      739           1.706604e-01         0.4200000                        0
+## 20        20           1.997102e-01         0.4160000                        0
+## 659      659           1.867163e-01         0.4150000                        0
+## 834      834           1.929181e-01         0.4040000                        0
+## 921      921           1.892466e-01         0.4040000                        0
+## 1091    1091           1.837839e-01         0.4040000                        0
+## 1286    1286           1.959658e-01         0.4040000                        0
+## 263      263           1.008978e-01         0.3944000                        0
+## 418      418           9.586890e-02         0.3896000                        0
+## 479      479           1.819369e-01         0.3850000                        0
+## 266      266           8.419481e-02         0.3848000                        0
+## 410      410           1.685945e-01         0.3800000                        0
+## 729      729           1.703017e-01         0.3800000                        0
+## 857      857           1.989072e-01         0.3800000                        0
+## 1148    1148           1.710047e-02         0.3800000                        0
+## 1567    1567           1.518897e-01         0.3800000                        0
+## 1514    1514           1.918098e-01         0.3776000                        0
+## 442      442           1.662776e-01         0.3752000                        0
+## 467      467           1.534630e-01         0.3728000                        0
+## 1220    1220           1.579418e-01         0.3728000                        0
+## 889      889           1.922899e-01         0.3725000                        0
+## 168      168           1.773592e-01         0.3656000                        0
+## 1354    1354           1.981308e-01         0.3650000                        0
+## 867      867           1.679933e-01         0.3645714                        0
+## 1500    1500           1.576178e-01         0.3640000                        0
+## 10        10           1.631854e-01         0.3565217                        0
+## 341      341           8.692029e-02         0.3560000                        0
+## 1608    1608           1.739201e-01         0.3560000                        0
+## 123      123           1.681245e-01         0.3550000                        0
+## 588      588           1.978470e-01         0.3550000                        0
+## 674      674           1.974618e-01         0.3550000                        0
+## 1092    1092           1.722079e-01         0.3550000                        0
+## 7          7           1.777608e-01         0.3545455                        0
+## 416      416           1.654447e-01         0.3538462                        0
+## 354      354           1.387751e-01         0.3480000                        0
+## 929      929           9.028731e-02         0.3474286                        0
+## 1295    1295           1.497841e-01         0.3470000                        0
+## 118      118           1.689462e-01         0.3450000                        0
+## 1105    1105           1.922693e-01         0.3432836                        0
+## 714      714           1.927850e-01         0.3360825                        0
+## 1350    1350           1.347381e-01         0.3350000                        0
+## 717      717           1.416657e-01         0.3336634                        0
+## 179      179           1.644075e-01         0.3328571                        0
+## 30        30           1.561259e-01         0.3320000                        0
+## 1193    1193           1.710069e-01         0.3300000                        0
+## 1024    1024           9.984365e-02         0.3296000                        0
+## 1646    1646           1.354391e-01         0.3296000                        0
+## 1419    1419           1.853691e-01         0.3292308                        0
+## 1761    1761           1.891853e-01         0.3283721                        0
+## 832      832           1.643241e-01         0.3275000                        0
+## 840      840           1.715768e-01         0.3272727                        0
+## 117      117           1.549539e-01         0.3270588                        0
+## 364      364           1.409182e-01         0.3260274                        0
+## 1093    1093           1.985798e-01         0.3260000                        0
+## 1551    1551           1.768365e-01         0.3260000                        0
+## 1304    1304           1.658394e-01         0.3253731                        0
+## 353      353           6.344031e-02         0.3251429                        0
+## 1560    1560           1.020058e-01         0.3251429                        0
+## 356      356           7.954206e-02         0.3248000                        0
+## 924      924           1.290048e-01         0.3248000                        0
+## 363      363           1.345622e-01         0.3241379                        0
+## 1557    1557           1.974016e-01         0.3240000                        0
+## 512      512           1.664871e-01         0.3221818                        0
+## 1118    1118           1.878609e-01         0.3202864                        0
+## 861      861           1.672438e-01         0.3202186                        0
+## 35        35           1.734955e-01         0.3200000                        0
+## 615      615           1.430551e-01         0.3200000                        0
+## 709      709           1.793710e-01         0.3200000                        0
+## 791      791           1.756243e-01         0.3200000                        0
+## 948      948           1.365404e-01         0.3200000                        0
+## 1035    1035           1.575648e-01         0.3200000                        0
+## 1136    1136           1.264614e-01         0.3200000                        0
+## 1312    1312           1.783528e-01         0.3200000                        0
+## 1353    1353           1.626350e-01         0.3200000                        0
+## 1580    1580           1.595588e-01         0.3200000                        0
+## 1762    1762           9.982656e-02         0.3200000                        0
+## 454      454           1.292730e-01         0.3187500                        0
+## 1664    1664           1.598646e-01         0.3185185                        0
+## 1349    1349           1.648380e-01         0.3183752                        0
+## 971      971           1.341995e-01         0.3183673                        0
+## 679      679           1.609697e-01         0.3176000                        0
+## 265      265           1.927777e-01         0.3166667                        0
+## 213      213           1.552943e-01         0.3100000                        0
+## 1379    1379           1.784553e-01         0.3100000                        0
+## 610      610           1.713117e-01         0.3087500                        0
+## 875      875           1.710804e-01         0.3087500                        0
+## 1667    1667           1.794495e-01         0.3083333                        0
+## 1219    1219           1.585615e-01         0.3080000                        0
+## 1406    1406           1.790052e-01         0.3080000                        0
+## 1023    1023           1.544791e-01         0.3061538                        0
+## 144      144           1.719937e-01         0.3051095                        0
+## 719      719           1.243732e-01         0.3050000                        0
+## 1280    1280           1.705782e-01         0.3050000                        0
+## 851      851           1.276682e-01         0.3045714                        0
+## 1123    1123           1.049632e-01         0.3028571                        0
+## 976      976           1.939809e-01         0.3026316                        0
+## 386      386           1.934211e-01         0.3025455                        0
+## 958      958           1.988510e-01         0.3020000                        0
+## 486      486           9.342570e-02         0.3000000                        0
+## 988      988           1.203420e-01         0.3000000                        0
+## 1409    1409           1.202125e-01         0.2990000                        0
+## 872      872           1.283603e-01         0.2978947                        0
+## 419      419           1.239222e-01         0.2970350                        0
+## 270      270           1.655634e-01         0.2966667                        0
+## 209      209           1.837248e-01         0.2960000                        0
+## 420      420           1.436336e-01         0.2960000                        0
+## 611      611           1.736743e-01         0.2960000                        0
+## 1020    1020           1.684553e-01         0.2960000                        0
+## 1446    1446           1.119068e-01         0.2960000                        0
+## 1793    1793           1.489663e-01         0.2960000                        0
+## 1283    1283           1.925601e-01         0.2945636                        0
+## 923      923           1.718777e-01         0.2945000                        0
+## 196      196           1.772643e-01         0.2937500                        0
+## 112      112           9.918998e-02         0.2936000                        0
+## 1224    1224           3.501194e-12         0.2936000                        0
+## 119      119           1.876529e-01         0.2935733                        0
+## 433      433           1.501561e-01         0.2934286                        0
+## 734      734           1.500558e-01         0.2933333                        0
+## 917      917           7.069138e-02         0.2931034                        0
+## 1223    1223           1.482549e-01         0.2930000                        0
+## 946      946           1.345870e-01         0.2920000                        0
+## 1341    1341           1.909882e-01         0.2916800                        0
+## 407      407           1.181899e-01         0.2912000                        0
+## 1384    1384           1.817683e-01         0.2900000                        0
+## 1407    1407           1.671300e-01         0.2900000                        0
+## 1421    1421           1.697289e-01         0.2900000                        0
+## 831      831           1.888772e-01         0.2888000                        0
+## 1326    1326           1.573582e-01         0.2888000                        0
+## 1200    1200           1.842881e-01         0.2884211                        0
+## 629      629           1.958034e-01         0.2875294                        0
+## 777      777           1.710971e-01         0.2866667                        0
+## 987      987           1.599473e-01         0.2850000                        0
+## 790      790           1.577915e-01         0.2840000                        0
+## 1073    1073           1.999241e-01         0.2840000                        0
+## 1364    1364           1.621678e-01         0.2840000                        0
+## 1383    1383           1.635725e-01         0.2840000                        0
+## 1254    1254           1.891835e-01         0.2834000                        0
+## 255      255           1.829361e-01         0.2825000                        0
+## 128      128           1.622735e-01         0.2816000                        0
+## 1708    1708           1.972906e-01         0.2816000                        0
+## 1277    1277           1.991219e-01         0.2763636                        0
+## 567      567           1.852473e-01         0.2760000                        0
+## 1518    1518           1.644917e-01         0.2750000                        0
+## 1571    1571           1.892039e-01         0.2750000                        0
+## 1632    1632           1.594551e-01         0.2750000                        0
+## 148      148           1.391204e-01         0.2744828                        0
+## 1132    1132           1.902085e-01         0.2744000                        0
+## 726      726           1.632443e-01         0.2735000                        0
+## 1229    1229           2.629619e-02         0.2727742                        0
+## 34        34           1.840177e-01         0.2720000                        0
+## 554      554           1.452733e-01         0.2720000                        0
+## 1112    1112           1.709682e-01         0.2720000                        0
+## 1076    1076           1.841465e-01         0.2710769                        0
+## 671      671           1.975280e-01         0.2708000                        0
+## 678      678           1.322453e-01         0.2700000                        0
+## 754      754           1.998421e-01         0.2700000                        0
+## 1163    1163           1.904084e-01         0.2700000                        0
+## 1733    1733           1.839811e-01         0.2700000                        0
+## 692      692           1.546284e-01         0.2692308                        0
+## 111      111           1.805951e-01         0.2690000                        0
+## 700      700           8.750303e-02         0.2690000                        0
+## 494      494           1.776018e-01         0.2672000                        0
+## 569      569           1.167276e-01         0.2672000                        0
+## 737      737           1.788726e-01         0.2672000                        0
+## 1714    1714           1.667086e-01         0.2672000                        0
+## 1434    1434           1.762212e-01         0.2667500                        0
+## 738      738           1.974549e-01         0.2666667                        0
+## 845      845           1.688801e-01         0.2665455                        0
+## 1731    1731           1.618501e-01         0.2660000                        0
+## 357      357           1.452964e-01         0.2652243                        0
+## 398      398           1.550822e-01         0.2651429                        0
+## 336      336           1.619449e-01         0.2648000                        0
+## 1591    1591           1.400256e-01         0.2648000                        0
+## 464      464           1.509294e-01         0.2643200                        0
+## 1323    1323           1.372838e-01         0.2642857                        0
+## 446      446           1.152212e-01         0.2625000                        0
+## 1394    1394           1.422668e-01         0.2620690                        0
+## 51        51           1.561364e-01         0.2600000                        0
+##            pnl    criterion
+## 1334 0.6233333 6.792980e+00
+## 715  0.6117647 3.978102e+00
+## 11   0.5702857 3.019052e+00
+## 592  0.5445714 2.898468e+00
+## 208  0.5200000 2.894160e+00
+## 784  0.5200000 2.735544e+00
+## 65   0.5000000 2.222977e+01
+## 146  0.4880000 2.680219e+00
+## 259  0.4863636 3.619516e+00
+## 546  0.4840000 2.515720e+00
+## 377  0.4592000 2.390616e+00
+## 135  0.4571429 3.106305e+00
+## 685  0.4566667 2.529721e+00
+## 480  0.4447368 2.350075e+00
+## 110  0.4371429 2.403163e+00
+## 847  0.4370000 2.348906e+00
+## 691  0.4357143 2.399802e+00
+## 465  0.4352000 2.669595e+00
+## 378  0.4350000 2.710148e+00
+## 153  0.4342857 2.189792e+00
+## 1158 0.4335878 2.199258e+00
+## 1738 0.4333333 2.615978e+00
+## 739  0.4200000 2.461027e+00
+## 20   0.4160000 2.083018e+00
+## 659  0.4150000 2.222623e+00
+## 834  0.4040000 2.094153e+00
+## 921  0.4040000 2.134781e+00
+## 1091 0.4040000 2.198234e+00
+## 1286 0.4040000 2.061584e+00
+## 263  0.3944000 3.908905e+00
+## 418  0.3896000 4.063883e+00
+## 479  0.3850000 2.116119e+00
+## 266  0.3848000 4.570353e+00
+## 410  0.3800000 2.253928e+00
+## 729  0.3800000 2.231334e+00
+## 857  0.3800000 1.910439e+00
+## 1148 0.3800000 2.222162e+01
+## 1567 0.3800000 2.501815e+00
+## 1514 0.3776000 1.968617e+00
+## 442  0.3752000 2.256468e+00
+## 467  0.3728000 2.429250e+00
+## 1220 0.3728000 2.360363e+00
+## 889  0.3725000 1.937179e+00
+## 168  0.3656000 2.061354e+00
+## 1354 0.3650000 1.842217e+00
+## 867  0.3645714 2.170154e+00
+## 1500 0.3640000 2.309384e+00
+## 10   0.3565217 2.184764e+00
+## 341  0.3560000 4.095707e+00
+## 1608 0.3560000 2.046917e+00
+## 123  0.3550000 2.111530e+00
+## 588  0.3550000 1.794316e+00
+## 674  0.3550000 1.797816e+00
+## 1092 0.3550000 2.061461e+00
+## 7    0.3545455 1.994509e+00
+## 416  0.3538462 2.138758e+00
+## 354  0.3480000 2.507654e+00
+## 929  0.3474286 3.848033e+00
+## 1295 0.3470000 2.316668e+00
+## 118  0.3450000 2.042070e+00
+## 1105 0.3432836 1.785431e+00
+## 714  0.3360825 1.743302e+00
+## 1350 0.3350000 2.486305e+00
+## 717  0.3336634 2.355286e+00
+## 179  0.3328571 2.024586e+00
+## 30   0.3320000 2.126489e+00
+## 1193 0.3300000 1.929747e+00
+## 1024 0.3296000 3.301161e+00
+## 1646 0.3296000 2.433567e+00
+## 1419 0.3292308 1.776082e+00
+## 1761 0.3283721 1.735717e+00
+## 832  0.3275000 1.993012e+00
+## 840  0.3272727 1.907442e+00
+## 117  0.3270588 2.110685e+00
+## 364  0.3260274 2.313593e+00
+## 1093 0.3260000 1.641657e+00
+## 1551 0.3260000 1.843511e+00
+## 1304 0.3253731 1.961977e+00
+## 353  0.3251429 5.125178e+00
+## 1560 0.3251429 3.187493e+00
+## 356  0.3248000 4.083374e+00
+## 924  0.3248000 2.517736e+00
+## 363  0.3241379 2.408833e+00
+## 1557 0.3240000 1.641324e+00
+## 512  0.3221818 1.935176e+00
+## 1118 0.3202864 1.704912e+00
+## 861  0.3202186 1.914681e+00
+## 35   0.3200000 1.844428e+00
+## 615  0.3200000 2.236900e+00
+## 709  0.3200000 1.784012e+00
+## 791  0.3200000 1.822071e+00
+## 948  0.3200000 2.343629e+00
+## 1035 0.3200000 2.030910e+00
+## 1136 0.3200000 2.530416e+00
+## 1312 0.3200000 1.794196e+00
+## 1353 0.3200000 1.967596e+00
+## 1580 0.3200000 2.005531e+00
+## 1762 0.3200000 3.205560e+00
+## 454  0.3187500 2.465712e+00
+## 1664 0.3185185 1.992427e+00
+## 1349 0.3183752 1.931443e+00
+## 971  0.3183673 2.372344e+00
+## 679  0.3176000 1.973042e+00
+## 265  0.3166667 1.642652e+00
+## 213  0.3100000 1.996209e+00
+## 1379 0.3100000 1.737130e+00
+## 610  0.3087500 1.802271e+00
+## 875  0.3087500 1.804707e+00
+## 1667 0.3083333 1.718218e+00
+## 1219 0.3080000 1.942464e+00
+## 1406 0.3080000 1.720620e+00
+## 1023 0.3061538 1.981847e+00
+## 144  0.3051095 1.773957e+00
+## 719  0.3050000 2.452296e+00
+## 1280 0.3050000 1.788036e+00
+## 851  0.3045714 2.385648e+00
+## 1123 0.3028571 2.885365e+00
+## 976  0.3026316 1.560110e+00
+## 386  0.3025455 1.564180e+00
+## 958  0.3020000 1.518725e+00
+## 486  0.3000000 3.211108e+00
+## 988  0.3000000 2.492894e+00
+## 1409 0.2990000 2.487263e+00
+## 872  0.2978947 2.320770e+00
+## 419  0.2970350 2.396947e+00
+## 270  0.2966667 1.791861e+00
+## 209  0.2960000 1.611105e+00
+## 420  0.2960000 2.060799e+00
+## 611  0.2960000 1.704340e+00
+## 1020 0.2960000 1.757143e+00
+## 1446 0.2960000 2.645058e+00
+## 1793 0.2960000 1.987026e+00
+## 1283 0.2945636 1.529723e+00
+## 923  0.2945000 1.713427e+00
+## 196  0.2937500 1.657130e+00
+## 112  0.2936000 2.959976e+00
+## 1224 0.2936000 8.385710e+10
+## 119  0.2935733 1.564449e+00
+## 433  0.2934286 1.954157e+00
+## 734  0.2933333 1.954828e+00
+## 917  0.2931034 4.146240e+00
+## 1223 0.2930000 1.976325e+00
+## 946  0.2920000 2.169600e+00
+## 1341 0.2916800 1.527215e+00
+## 407  0.2912000 2.463832e+00
+## 1384 0.2900000 1.595438e+00
+## 1407 0.2900000 1.735176e+00
+## 1421 0.2900000 1.708607e+00
+## 831  0.2888000 1.529036e+00
+## 1326 0.2888000 1.835303e+00
+## 1200 0.2884211 1.565056e+00
+## 629  0.2875294 1.468460e+00
+## 777  0.2866667 1.675462e+00
+## 987  0.2850000 1.781837e+00
+## 790  0.2840000 1.799844e+00
+## 1073 0.2840000 1.420539e+00
+## 1364 0.2840000 1.751272e+00
+## 1383 0.2840000 1.736233e+00
+## 1254 0.2834000 1.498017e+00
+## 255  0.2825000 1.544255e+00
+## 128  0.2816000 1.735342e+00
+## 1708 0.2816000 1.427336e+00
+## 1277 0.2763636 1.387912e+00
+## 567  0.2760000 1.489900e+00
+## 1518 0.2750000 1.671816e+00
+## 1571 0.2750000 1.453458e+00
+## 1632 0.2750000 1.724624e+00
+## 148  0.2744828 1.972986e+00
+## 1132 0.2744000 1.442627e+00
+## 726  0.2735000 1.675404e+00
+## 1229 0.2727742 1.037315e+01
+## 34   0.2720000 1.478119e+00
+## 554  0.2720000 1.872333e+00
+## 1112 0.2720000 1.590939e+00
+## 1076 0.2710769 1.472072e+00
+## 671  0.2708000 1.370945e+00
+## 678  0.2700000 2.041661e+00
+## 754  0.2700000 1.351067e+00
+## 1163 0.2700000 1.418005e+00
+## 1733 0.2700000 1.467542e+00
+## 692  0.2692308 1.741147e+00
+## 111  0.2690000 1.489520e+00
+## 700  0.2690000 3.074179e+00
+## 494  0.2672000 1.504490e+00
+## 569  0.2672000 2.289090e+00
+## 737  0.2672000 1.493801e+00
+## 1714 0.2672000 1.602797e+00
+## 1434 0.2667500 1.513723e+00
+## 738  0.2666667 1.350519e+00
+## 845  0.2665455 1.578312e+00
+## 1731 0.2660000 1.643496e+00
+## 357  0.2652243 1.825401e+00
+## 398  0.2651429 1.709692e+00
+## 336  0.2648000 1.635124e+00
+## 1591 0.2648000 1.891082e+00
+## 464  0.2643200 1.751282e+00
+## 1323 0.2642857 1.925105e+00
+## 446  0.2625000 2.278227e+00
+## 1394 0.2620690 1.842095e+00
+## 51   0.2600000 1.665210e+00</code></pre>
+<pre class="r"><code>top_200_pnl_loan_nb &lt;- top_200_pnl$loan_nb
+top_200_pnl_loan_nb_df &lt;- data.frame(top_200_pnl_loan_nb)
+print(top_200_pnl_loan_nb_df)</code></pre>
+<pre><code>##     top_200_pnl_loan_nb
+## 1                  1334
+## 2                   715
+## 3                    11
+## 4                   592
+## 5                   208
+## 6                   784
+## 7                    65
+## 8                   146
+## 9                   259
+## 10                  546
+## 11                  377
+## 12                  135
+## 13                  685
+## 14                  480
+## 15                  110
+## 16                  847
+## 17                  691
+## 18                  465
+## 19                  378
+## 20                  153
+## 21                 1158
+## 22                 1738
+## 23                  739
+## 24                   20
+## 25                  659
+## 26                  834
+## 27                  921
+## 28                 1091
+## 29                 1286
+## 30                  263
+## 31                  418
+## 32                  479
+## 33                  266
+## 34                  410
+## 35                  729
+## 36                  857
+## 37                 1148
+## 38                 1567
+## 39                 1514
+## 40                  442
+## 41                  467
+## 42                 1220
+## 43                  889
+## 44                  168
+## 45                 1354
+## 46                  867
+## 47                 1500
+## 48                   10
+## 49                  341
+## 50                 1608
+## 51                  123
+## 52                  588
+## 53                  674
+## 54                 1092
+## 55                    7
+## 56                  416
+## 57                  354
+## 58                  929
+## 59                 1295
+## 60                  118
+## 61                 1105
+## 62                  714
+## 63                 1350
+## 64                  717
+## 65                  179
+## 66                   30
+## 67                 1193
+## 68                 1024
+## 69                 1646
+## 70                 1419
+## 71                 1761
+## 72                  832
+## 73                  840
+## 74                  117
+## 75                  364
+## 76                 1093
+## 77                 1551
+## 78                 1304
+## 79                  353
+## 80                 1560
+## 81                  356
+## 82                  924
+## 83                  363
+## 84                 1557
+## 85                  512
+## 86                 1118
+## 87                  861
+## 88                   35
+## 89                  615
+## 90                  709
+## 91                  791
+## 92                  948
+## 93                 1035
+## 94                 1136
+## 95                 1312
+## 96                 1353
+## 97                 1580
+## 98                 1762
+## 99                  454
+## 100                1664
+## 101                1349
+## 102                 971
+## 103                 679
+## 104                 265
+## 105                 213
+## 106                1379
+## 107                 610
+## 108                 875
+## 109                1667
+## 110                1219
+## 111                1406
+## 112                1023
+## 113                 144
+## 114                 719
+## 115                1280
+## 116                 851
+## 117                1123
+## 118                 976
+## 119                 386
+## 120                 958
+## 121                 486
+## 122                 988
+## 123                1409
+## 124                 872
+## 125                 419
+## 126                 270
+## 127                 209
+## 128                 420
+## 129                 611
+## 130                1020
+## 131                1446
+## 132                1793
+## 133                1283
+## 134                 923
+## 135                 196
+## 136                 112
+## 137                1224
+## 138                 119
+## 139                 433
+## 140                 734
+## 141                 917
+## 142                1223
+## 143                 946
+## 144                1341
+## 145                 407
+## 146                1384
+## 147                1407
+## 148                1421
+## 149                 831
+## 150                1326
+## 151                1200
+## 152                 629
+## 153                 777
+## 154                 987
+## 155                 790
+## 156                1073
+## 157                1364
+## 158                1383
+## 159                1254
+## 160                 255
+## 161                 128
+## 162                1708
+## 163                1277
+## 164                 567
+## 165                1518
+## 166                1571
+## 167                1632
+## 168                 148
+## 169                1132
+## 170                 726
+## 171                1229
+## 172                  34
+## 173                 554
+## 174                1112
+## 175                1076
+## 176                 671
+## 177                 678
+## 178                 754
+## 179                1163
+## 180                1733
+## 181                 692
+## 182                 111
+## 183                 700
+## 184                 494
+## 185                 569
+## 186                 737
+## 187                1714
+## 188                1434
+## 189                 738
+## 190                 845
+## 191                1731
+## 192                 357
+## 193                 398
+## 194                 336
+## 195                1591
+## 196                 464
+## 197                1323
+## 198                 446
+## 199                1394
+## 200                  51</code></pre>
+<pre class="r"><code>#arrange the table using our criterion that weight the predicted probability of default and the return if no default
+pred_logistic_reg_assessment_data_df_complete_ordered_by_criterion &lt;- arrange(pred_logistic_reg_assessment_data_df_complete,desc(criterion))
+  
+#print the first 200 loans which would be the ones we would invest in according to our criterion
+top_200_criterion &lt;- head(pred_logistic_reg_assessment_data_df_complete_ordered_by_criterion,200)
+  by_criterion_total_pnl_no_default &lt;- sum(top_200_criterion$return_no_default)
+  by_criterion_total_pnl_no_default</code></pre>
+<pre><code>## [1] 46.65881</code></pre>
+<pre class="r"><code>top_200_criterion_loan_nb &lt;- top_200_criterion$loan_nb
+top_200_criterion_loan_nb_df &lt;- data.frame(top_200_criterion_loan_nb)
+head(top_200_criterion_loan_nb_df, x = 10)</code></pre>
+<pre><code>## [1] 10</code></pre>
+<pre class="r"><code>tail(top_200_criterion_loan_nb_df, x = 10)</code></pre>
+<pre><code>## [1] 10</code></pre>
+<p>Note that the <code>echo = FALSE</code> parameter was added to the code chunk to prevent printing of the R code that generated the plot.</p>
+</div>
+</div>
