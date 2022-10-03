@@ -2,7 +2,7 @@
 title: "R PROJECT | Logistic regression and loan default prediction"
 author: "Hadrien Pistre"
 date: 2022-04-17T21:13:14-05:00
-categories: ["R Projects"]
+categories: ["1. R Projects"]
 tags: ["R", "Logistic regression", "Linear regression", "Loan default prediction"]
 ---
 

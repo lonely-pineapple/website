@@ -1,8 +1,8 @@
 ---
 title: "ARTICLE | Why French and European architects must embrace the American model if they are to survive"
 author: "Hadrien Pistre"
-date: "2019-05-13"
-categories: ["Articles"]
+date: "2018-11-23"
+categories: ["3. Articles"]
 tags: ["Architecture", "Arts", "New technologies", "France"]
 ---
 

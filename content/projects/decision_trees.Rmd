@@ -2,7 +2,7 @@
 title: "R PROJECT | Decision tree, KNN and text-mining"
 author: "Hadrien Pistre"
 date: 2022-04-26T21:13:14-05:00
-categories: ["R Projects"]
+categories: ["1. R Projects"]
 tags: ["R", "Decision tree", "Regression tree", "Random tree", "KNN", "Text mining"]
 ---
 
