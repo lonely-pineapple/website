@@ -8,26 +8,26 @@ title: Home
 
 ## INTRODUCTION
 
-Hello and welcome on my personal website! In **[Projects](https://www.hadrienpistre.com/categories/)** or at the bottom of this page, you will pieces of works I've done on my own during my studies or free time; these are referenced by key words in **[Tags](https://www.hadrienpistre.com/tags/)** as well. You can also download my resume in **[CV](https://www.hadrienpistre.com/hadrien_pistre_cv.pdf)**. 
+Hello and welcome on my personal website! In **[Projects](https://www.hadrienpistre.com/categories/)** or at the bottom of this page, you will pieces of works I've done on my own during my studies or free time; these are referenced by key words in **[Tags](https://www.hadrienpistre.com/tags/)** as well. You can also download my resume in <a href="https://www.hadrienpistre.com/hadrien_pistre_cv.pdf" target="_blank">CV</a>**.
 
 ## EDUCATION
 
-**LONDON BUSINESS SCHOOL** (2021 - 2022)\
+**London Business School** (2021 - 2022)\
 Masters in Financial Analysis\
-**KEDGE BUSINESS SCHOOL** (2017 - 2021)\
+**Kedge Business School** (2017 - 2021)\
 Masters in Management\
-**LYCÉE MONTAIGNE** (2015 - 2017)\
+**Lycée Montaigne** (2015 - 2017)\
 Preparatory Class, Economics and Applied Mathematics
 
 ## PROFESSIONAL EXPERIENCE
 
-**PEARSON HAM CONSULTING LTD** - London, UK (Sep. 2022 - Today)\
+**Pearson Ham Consulting Ltd** - London (Sep. 22 - Today)\
 Pricing Analyst\
-**NATWEST CORPORATES AND INSTITUTIONS** - London, UK (Jun. - Aug. 2022)\
+**NatWest Corporates and Institutions** - London (Jun. 22 - Aug. 22)\
 Structured Finance Summer Analyst\
-**SEABIRD CONSULTING** - Paris, France (Mar. - Jul. 2021)\
+**Seabird Consulting** - Paris (Mar. 21 - Jul. 21)\
 Financial Consultant Intern\
-**ERNST & YOUNG** - Paris, France (Sep. 19 - Mar. 2021)\
+**Ernst & Young** - Paris (Sep. 19 - Mar. 20)\
 Financial Audit Intern
 
 ## WEBSITE CONTENT

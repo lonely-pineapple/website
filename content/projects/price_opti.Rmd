@@ -1,5 +1,5 @@
 ---
-title: "Price optimisation"
+title: "R PROJECT | Price optimisation"
 author: "Hadrien Pistre"
 date: 2022-10-02
 categories: ["R Projects"]
@@ -9,7 +9,7 @@ tags: ["R", "Logistic regression", "Linear regression", "Price optimisation"]
 I performed this analysis on a dataset containing fictitious information about car insurance customers.
 
 ![car_insurance](https://www.hadrienpistre.com/car_insurance.jpg)
-*Image source: https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/*
+*Image source: <a href="https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/" target="_blank">dayinsure.com</a>*
 
 ```{r setup, cache=TRUE, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -722,11 +722,11 @@ ggplot(youden_cutoffs, aes(x = cut_off, y = youden))+
 
 The cut-off point for which the Youden Index is the highest is **0.5625**. 
 
-#4. Maximise profit and/or revenue by changing the price
+# 4. Maximise profit and/or revenue by changing the price
 
-##4.1. Determine the prices that maximize revenue and profit
+## 4.1. Determine the prices that maximize revenue and profit
 
-###4.1.1. Investigating for clustering
+### 4.1.1. Investigating for clustering
 
 We now would like to find the prices that maximize respectively profit and revenue. To that end, we will use the logistic regression model with the cut-off point we determined to predict the renewal rate according to different price levels.
 
@@ -779,7 +779,7 @@ plot(summary(res_kmeans))
 
 As we can see on the charts, there seems to be no cluster: they are all pretty similar and cover the same data points; even when examining for only two clusters, we cannot notice any significant difference between different subgroups of our population. It would thus be not relevant to cluster our data, as it would not improve our ability to determine the best prices to maximize revenue or profit.
 
-###4.1.2. Determining the prices that maximize revenue and profit
+### 4.1.2. Determining the prices that maximize revenue and profit
 
 Since no relevant clustering can be performed, we will examine how uniform changes in price affect contract renewal (demand). We proceed as follows:
 - We compute revenue as being the sum of the contracts' prices when they are renewed
@@ -956,7 +956,7 @@ According to our logistic regression model and our optimal cut-off point, assumi
 
 *Note: the actual revenue and profit lines do not intersect with the forecast curves and y = 0 because the curves correspond to forecast values that differ from the actual values.*
 
-##4.2. Examine the effects of price changes on volume and compute the elasticity of demand (renewal rate) to price
+## 4.2. Examine the effects of price changes on volume and compute the elasticity of demand (renewal rate) to price
 
 We then examine the effect on demand of changes in price and determine the price elasticity of demand (contract renewal rate).
 

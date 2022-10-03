@@ -1,5 +1,5 @@
 ---
-title: "Price optimisation"
+title: "R PROJECT | Price optimisation"
 author: "Hadrien Pistre"
 date: 2022-10-02
 categories: ["R Projects"]
@@ -10,7 +10,7 @@ tags: ["R", "Logistic regression", "Linear regression", "Price optimisation"]
 
 <p>I performed this analysis on a dataset containing fictitious information about car insurance customers.</p>
 <p><img src="https://www.hadrienpistre.com/car_insurance.jpg" alt="car_insurance" />
-<em>Image source: <a href="https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/" class="uri">https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/</a></em></p>
+<em>Image source: <a href="https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/" target="_blank">dayinsure.com</a></em></p>
 <p><strong>Used packages:</strong></p>
 <pre class="r"><code>library(tidyverse)
 library(dplyr)
@@ -1219,9 +1219,14 @@ ggplot(youden_cutoffs, aes(x = cut_off, y = youden))+
   theme(legend.title=element_blank())</code></pre>
 <p><img src="/projects/price_opti_files/figure-html/determining%20the%20optimal%20cut-off%20for%20our%20logistic%20regression%20model-1.png" width="672" /></p>
 <p>The cut-off point for which the Youden Index is the highest is <strong>0.5625</strong>.</p>
-<p>#4. Maximise profit and/or revenue by changing the price</p>
-<p>##4.1. Determine the prices that maximize revenue and profit</p>
-<p>###4.1.1. Investigating for clustering</p>
+</div>
+</div>
+<div id="maximise-profit-andor-revenue-by-changing-the-price" class="section level1">
+<h1>4. Maximise profit and/or revenue by changing the price</h1>
+<div id="determine-the-prices-that-maximize-revenue-and-profit" class="section level2">
+<h2>4.1. Determine the prices that maximize revenue and profit</h2>
+<div id="investigating-for-clustering" class="section level3">
+<h3>4.1.1. Investigating for clustering</h3>
 <p>We now would like to find the prices that maximize respectively profit and revenue. To that end, we will use the logistic regression model with the cut-off point we determined to predict the renewal rate according to different price levels.</p>
 <p>First, we try to determine if your data can be clustered: maybe customer groups with different characteristics or habits can be determined. If such groups exist, they may have different sensivities to changes in price: we could then find the optimal</p>
 <pre class="r"><code>#getting rid of the additional variables we added previously
@@ -1264,7 +1269,9 @@ predict(res_kmeans)</code></pre>
 plot(summary(res_kmeans))</code></pre>
 <p><img src="/projects/price_opti_files/figure-html/plot%20cluster%20the%20data-1.png" width="672" /></p>
 <p>As we can see on the charts, there seems to be no cluster: they are all pretty similar and cover the same data points; even when examining for only two clusters, we cannot notice any significant difference between different subgroups of our population. It would thus be not relevant to cluster our data, as it would not improve our ability to determine the best prices to maximize revenue or profit.</p>
-<p>###4.1.2. Determining the prices that maximize revenue and profit</p>
+</div>
+<div id="determining-the-prices-that-maximize-revenue-and-profit" class="section level3">
+<h3>4.1.2. Determining the prices that maximize revenue and profit</h3>
 <p>Since no relevant clustering can be performed, we will examine how uniform changes in price affect contract renewal (demand). We proceed as follows:
 - We compute revenue as being the sum of the contracts’ prices when they are renewed
 - We assume a cost per contract (variable cost), which is incurred only for renewed contracts
@@ -1440,7 +1447,10 @@ According to our logistic regression model and our optimal cut-off point, assumi
 - A maximum revenue of <strong>£5,494K</strong> could be reached with a <strong>30%</strong> price increase, which would be a <strong>12.8%</strong> improvement over the current revenue of <strong>£4,871K</strong>
 - A maximum profit of <strong>£2,280K</strong> could be reached with a <strong>48.75%</strong> price increase, which would be a <strong>53.74%</strong> improvement over the current profit of <strong>£1,483K</strong></p>
 <p><em>Note: the actual revenue and profit lines do not intersect with the forecast curves and y = 0 because the curves correspond to forecast values that differ from the actual values.</em></p>
-<p>##4.2. Examine the effects of price changes on volume and compute the elasticity of demand (renewal rate) to price</p>
+</div>
+</div>
+<div id="examine-the-effects-of-price-changes-on-volume-and-compute-the-elasticity-of-demand-renewal-rate-to-price" class="section level2">
+<h2>4.2. Examine the effects of price changes on volume and compute the elasticity of demand (renewal rate) to price</h2>
 <p>We then examine the effect on demand of changes in price and determine the price elasticity of demand (contract renewal rate).</p>
 <pre class="r"><code>#create a table to plot the change in number of contract sold following changes in price
 forecast_3 &lt;- data_frame(forecast[,c(&quot;change_in_price&quot;,&quot;number_of_contracts_sold&quot;)])
