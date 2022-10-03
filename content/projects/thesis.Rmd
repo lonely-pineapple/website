@@ -1,0 +1,14 @@
+---
+title: "THESIS | Base erosion and profit shifting"
+author: "Hadrien Pistre"
+date: 2021-07-15
+categories: ["3. Thesis"]
+tags: ["Base erosion", "Profit shifting", "Thesis"]
+---
+
+This is the thesis I did for my Masters in Management at <a href="https://kedge.edu/" target="_blank">Kedge Business School</a> under the supervision of <a href="https://kedge.edu/annuaire/armand-bajard" target="_blank">Prof. Armand Bajard</a>.
+
+**Click <a href="Master_s_thesis_Hadrien_Pistre_What_is_the_extent_of_the_BEPS_phenomenon_And_how_hard_is_it_for_MNEs_to_engage_in_profit_shifting.pdf" target="_blank">here</a> or on the picture below to view the thesis.**
+
+[![beps](https://www.hadrienpistre.com/beps.jpg)](https://www.hadrienpistre.com/time_series_liv_ex_benchmark.pdf)
+*Image source: <a href="https://www.moneyvox.fr/actu/87717/inflation-quels-francais-ont-ete-touches-par-la-baisse-du-pouvoir-achat-en-2021" target="_blank">moneyvox.fr</a>*

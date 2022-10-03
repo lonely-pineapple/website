@@ -2,7 +2,7 @@
 title: "ARTICLE | West Virginia: America in a nutshell"
 author: "Hadrien Pistre"
 date: "2018-09-28"
-categories: ["3. Articles"]
+categories: ["4. Articles"]
 tags: ["USA", "Society", "New technologies", "France"]
 ---
 
