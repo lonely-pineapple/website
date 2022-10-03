@@ -6,7 +6,7 @@ categories: ["3. Theses"]
 tags: ["Base erosion", "Profit shifting", "Thesis"]
 ---
 
-This is the thesis I did for my Masters in Management at <a href="https://kedge.edu/" target="_blank">Kedge Business School</a> under the supervision of <a href="https://kedge.edu/annuaire/armand-bajard" target="_blank">Prof. Armand Bajard</a> (grade awarded: 18/20).
+I did a thesis about profit shifting (a fiscal optimisation technique) during my Masters in Management at <a href="https://kedge.edu/" target="_blank">Kedge Business School</a> under the supervision of <a href="https://kedge.edu/annuaire/armand-bajard" target="_blank">Prof. Armand Bajard</a> (grade awarded: 18/20).
 
 *Note: some confidential figures are redacted.*
 
