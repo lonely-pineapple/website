@@ -17,7 +17,7 @@ Masters in Financial Analysis\
 **Kedge Business School** (2017 - 2021)\
 Masters in Management\
 **Lycée Montaigne** (2015 - 2017)\
-Preparatory Class, Economics and Applied Mathematics
+Preparatory Class, Economics and Mathematics
 
 ## PROFESSIONAL EXPERIENCE
 
