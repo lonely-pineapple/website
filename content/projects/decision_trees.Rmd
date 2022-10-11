@@ -35,12 +35,6 @@ library(class)
 library(tokenizers)
 library(tidytext)
 library(PRROC)
-library("tm")
-library("SnowballC")
-library("wordcloud")
-library("RColorBrewer")
-library("syuzhet")
-library("ggplot2")
 ```
 
 # 0. Load the data

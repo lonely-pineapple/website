@@ -52,11 +52,13 @@ insurance_data &lt;- insurance_data[-1,]</code></pre>
 </div>
 <div id="format-the-data" class="section level2">
 <h2>1.2. Format the data</h2>
-<p>We then examine the types of data we imported.
-+ This data contains only 3 rows containing NAs out of more than 20K rows: we thus decide to delete those rows since their explanatory power is negligible given their small number.
-+ Variables containing numbers are stored as characters on the original data file. We decide to convert those variables to numeric variables.
-+ To be able to analyze categorical variables, we decide to create N-1 dummies for each of those variables.
-+ Finally, after a qualitative examination, we conclude than only variables 7 to 9 may be colinear. We create a colinear matrix using ggpairs and determine that variables 8 and 9 are colinear; we hence decide to remove variable 9 from our dataset.</p>
+<p>We then examine the types of data we imported.</p>
+<ul>
+<li>This data contains only 3 rows containing NAs out of more than 20K rows: we thus decide to delete those rows since their explanatory power is negligible given their small number.</li>
+<li>Variables containing numbers are stored as characters on the original data file. We decide to convert those variables to numeric variables.</li>
+<li>To be able to analyze categorical variables, we decide to create N-1 dummies for each of those variables.</li>
+<li>Finally, after a qualitative examination, we conclude than only variables 7 to 9 may be colinear. We create a colinear matrix using ggpairs and determine that variables 8 and 9 are colinear; we hence decide to remove variable 9 from our dataset.</li>
+</ul>
 <pre><code>## tibble [20,020 x 14] (S3: tbl_df/tbl/data.frame)
 ##  $ Marital Status                       : chr [1:20020] &quot;M&quot; &quot;M&quot; &quot;S&quot; &quot;M&quot; ...
 ##  $ AGE                                  : chr [1:20020] &quot;45&quot; &quot;40&quot; &quot;25&quot; &quot;42&quot; ...
