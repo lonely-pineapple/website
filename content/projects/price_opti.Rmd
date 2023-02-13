@@ -8,7 +8,7 @@ tags: ["R", "Logistic regression", "Linear regression", "Price optimisation"]
 
 I performed this analysis on a dataset containing fictitious information about car insurance customers.
 
-![car_insurance](https://www.hadrienpistre.com/car_insurance.jpg)
+![car_insurance](https://hp-personal-website.com/car_insurance.jpg)
 *Image source: <a href="https://www.dayinsure.com/news/when-does-car-insurance-get-cheaper/" target="_blank">dayinsure.com</a>*
 
 ```{r setup, cache=TRUE, include=FALSE}

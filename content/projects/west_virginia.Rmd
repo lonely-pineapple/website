@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Take me home, country roads
 
-![coal_train_wv](https://www.hadrienpistre.com/coal_train_wv.jpg)
+![coal_train_wv](https://hp-personal-website.com/coal_train_wv.jpg)
 *Image source: <a href="https://blog.ucsusa.org/jeremy-richardson/the-economic-impacts-of-future-coal-production-in-west-virginia-451/" target="_blank">ucsusa.org</a>*
 
 The well-known 1971 John Denver’s single describes what West Virginia evokes to most people: the countryside, the home of true America, where its spirit lies.
