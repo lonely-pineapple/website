@@ -59,7 +59,7 @@ insurance_data <- insurance_data[-1,]
 
 We then examine the types of data we imported. 
 
-* This data contains only 3 rows containing NAs out of more than 20K rows: we thus decide to delete those rows since their explanatory power is negligible given their small number. 
+* This data contains only 3 rows containing NAs out of more than 20K rows: we thus decide to delete those rows since their explanatory power is negligible given their small number. s
 * Variables containing numbers are stored as characters on the original data file. We decide to convert those variables to numeric variables.
 * To be able to analyze categorical variables, we decide to create N-1 dummies for each of those variables.
 * Finally, after a qualitative examination, we conclude than only variables 7 to 9 may be colinear. We create a colinear matrix using ggpairs and determine that variables 8 and 9 are colinear; we hence decide to remove variable 9 from our dataset.
