@@ -21,8 +21,8 @@ Preparatory Class, Economics and Mathematics
 
 ## PROFESSIONAL EXPERIENCE
 
-**Pearson Ham Consulting Ltd** - London (Sep. 22 - Present)\
-Pricing Analyst\
+**Pearson Ham Group** - London (Sep. 22 - Present)\
+Pricing Strategy Analyst\
 **NatWest Corporates and Institutions** - London (Jun. 22 - Aug. 22)\
 Structured Finance Summer Analyst\
 **Seabird Consulting** - Paris (Mar. 21 - Jul. 21)\

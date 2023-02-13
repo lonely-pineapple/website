@@ -23,7 +23,7 @@ menu:
       url: "tags/"
       weight: 3
     - name: CV
-      url: "https://www.hadrienpistre.com/hadrien_pistre_cv.pdf"
+      url: "https://hp-personal-website.com/hadrien_pistre_cv.pdf"
       weight: 4
       
 params:
