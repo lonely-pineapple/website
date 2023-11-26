@@ -28,7 +28,7 @@ menu:
       
 params:
   description: "Hadrien Pistre"
-  footer: "Hadrien Pistre {Year} - [LinkedIn](https://www.linkedin.com/in/hadrien-pistre/) | Template by &copy; Yihui Xie - [Github](https://github.com/yihui)"
+  footer: "HP Personal Website {Year} - [LinkedIn](https://www.linkedin.com/in/hadrien-pistre/) | Template by &copy; Yihui Xie - [Github](https://github.com/yihui)"
 
 markup:
   highlight:
