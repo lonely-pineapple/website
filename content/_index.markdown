@@ -4,7 +4,7 @@ title: Home
 
 [<img src="crop_hp.png" style="max-width:15%;min-width:40px;float:right;" alt="Github repo" />](https://www.linkedin.com/in/hadrien-pistre/)
 
-# Hadrien Pistre
+# HP Personal Website
 
 ## INTRODUCTION
 
@@ -21,9 +21,11 @@ Preparatory Class, Economics and Mathematics
 
 ## PROFESSIONAL EXPERIENCE
 
-**Pearson Ham Group** - London (Sep. 22 - Present)\
+**NatWest Group** - London (Sep. 23 - Present)\
+Structured Finance Analyst\
+**Pearson Ham Group** - London (Sep. 22 - Aug. 23)\
 Pricing Strategy Analyst\
-**NatWest Corporates and Institutions** - London (Jun. 22 - Aug. 22)\
+**NatWest Group** - London (Jun. 22 - Aug. 22)\
 Structured Finance Summer Analyst\
 **Seabird Consulting** - Paris (Mar. 21 - Jul. 21)\
 Financial Consultant Intern\
