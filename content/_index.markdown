@@ -12,24 +12,24 @@ Hello and welcome on my personal website! In **[Projects](https://hp-personal-we
 
 ## EDUCATION
 
-**London Business School** (2021 - 2022)\
+**London Business School** <em>(2021 - 2022)</em>\
 Masters in Financial Analysis\
-**Kedge Business School** (2017 - 2021)\
+**Kedge Business School** <em>(2017 - 2021)</em>\
 Masters in Management\
-**Lycée Montaigne** (2015 - 2017)\
+**Lycée Montaigne** <em>(2015 - 2017)</em>\
 Preparatory Class, Economics and Mathematics
 
 ## PROFESSIONAL EXPERIENCE
 
-**NatWest Group** - London (Sep. 23 - Present)\
+**NatWest Group**, London <em>(Sep. 23 - Present)</em>\
 Structured Finance Analyst\
-**Pearson Ham Group** - London (Sep. 22 - Aug. 23)\
+**Pearson Ham Group**, London <em>(Sep. 22 - Aug. 23)</em>\
 Pricing Strategy Analyst\
-**NatWest Group** - London (Jun. 22 - Aug. 22)\
+**NatWest Group**, London <em>(Jun. 22 - Aug. 22)</em>\
 Structured Finance Summer Analyst\
-**Seabird Consulting** - Paris (Mar. 21 - Jul. 21)\
+**Seabird Consulting**, Paris <em>(Mar. 21 - Jul. 21)</em>\
 Financial Consultant Intern\
-**Ernst & Young** - Paris (Sep. 19 - Mar. 20)\
+**Ernst & Young**, Paris <em>(Sep. 19 - Mar. 20)</em>\
 Financial Audit Intern
 
 ## WEBSITE CONTENT
