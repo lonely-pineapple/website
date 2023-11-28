@@ -23,7 +23,7 @@ Preparatory Class, Economics and Mathematics
 
 **NatWest Group**, London <em>(Sep. 23 - Present)</em>\
 Structured Finance Analyst\
-**Pearson Ham Group**, London <em>(Sep. 22 - Aug. 23)</em>\
+**Pearson Ham**, London <em>(Sep. 22 - Aug. 23)</em>\
 Pricing Strategy Analyst\
 **NatWest Group**, London <em>(Jun. 22 - Aug. 22)</em>\
 Structured Finance Summer Analyst\
