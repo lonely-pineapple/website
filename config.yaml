@@ -23,11 +23,11 @@ menu:
       url: "tags/"
       weight: 3
     - name: CV
-      url: "https://hp-personal-website.com/hadrien_pistre_cv.pdf"
+      url: "https://hppersonalwebsite.com/hadrien_pistre_cv.pdf"
       weight: 4
       
 params:
-  description: "Hadrien Pistre"
+  description: "HP Personal Website"
   footer: "HP Personal Website {Year} - [LinkedIn](https://www.linkedin.com/in/hadrien-pistre/) | Template by &copy; Yihui Xie - [Github](https://github.com/yihui)"
 
 markup:

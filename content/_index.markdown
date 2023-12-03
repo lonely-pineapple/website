@@ -8,7 +8,7 @@ title: Home
 
 ## INTRODUCTION
 
-Hello and welcome on my personal website! In **[Projects](https://hp-personal-website.com/categories/)** or at the bottom of this page, you will find projects I have done on my own during my studies and free time; these projects are referenced by key words in **[Tags](https://hp-personal-website.com/tags/)** as well. You can also download my resume in **<a href="https://hp-personal-website.com/hadrien_pistre_cv.pdf" target="_blank">CV</a>**.
+Hello and welcome on my personal website! In **[Projects](https://hppersonalwebsite.com/categories/)** or at the bottom of this page, you will find projects I have done on my own during my studies and free time; these projects are referenced by key words in **[Tags](https://hppersonalwebsite.com/tags/)** as well. You can also download my resume in **<a href="https://hppersonalwebsite.com/hadrien_pistre_cv.pdf" target="_blank">CV</a>**.
 
 ## EDUCATION
 
