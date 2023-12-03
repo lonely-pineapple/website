@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Take me home, country roads
 
-![coal_train_wv](https://hp-personal-website.com/coal_train_wv.jpg)
+![coal_train_wv](https://hppersonalwebsite.com/coal_train_wv.jpg)
 *Image source: <a href="https://blog.ucsusa.org/jeremy-richardson/the-economic-impacts-of-future-coal-production-in-west-virginia-451/" target="_blank">ucsusa.org</a>*
 
 The well-known 1971 John Denver’s single describes what West Virginia evokes to most people: the countryside, the home of true America, where its spirit lies.
@@ -33,7 +33,7 @@ They come to enjoy few days breaks—often going in fancy hotels and resorts, li
 
 ## Make West Virginia great again
 
-![trump_wv](https://www.hadrienpistre.com/trump_wv.png)
+![trump_wv](https://www.hppersonalwebsite.com/trump_wv.png)
 *Image source: <a href="https://www.theguardian.com/us-news/2016/may/05/donald-trump-west-virginia-campaign-rally-election-2016" target="_blank">theguardian.com</a>*
 
 This is one face of West Virginia: a beautiful, rural state, amid the Appalachians, a bit confidential, where some initiated tourists go to enjoy beautiful landscapes, and some coastal cities dwellers decide to live to rest from their intense life. A state that breathes and embodies the American spirit, and the history of the first people that made it.

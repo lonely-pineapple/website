@@ -8,7 +8,7 @@ tags: ["R", "Logistic regression", "Linear regression", "Loan default prediction
 
 I performed this analysis on a dataset containing information about borrowers of the <a href="https://www.lendingclub.com/" target="_blank">Lending Club</a>. This analysis was done during the elective "Data Mining for Business Intelligence" at <a href="https://www.london.edu/" target="_blank">London Business School</a> taught by <a href="https://www.london.edu/faculty-and-research/faculty-profiles/s/savva-n" target="_blank">Prof. Nicos Savva</a>, <a href="https://www.london.edu/faculty-and-research/faculty-profiles/k/kostis-christodoulou" target="_blank">Prof. Kostis Christodoulou</a> and <a href="https://www.london.edu/faculty-and-research/faculty-profiles/e/ekaterina-abramova" target="_blank">Prof. Ekaterina Abramova</a>.
 
-![lending_club_2](https://hp-personal-website.com/lending_club_2.jpg)
+![lending_club_2](https://hppersonalwebsite.com/lending_club_2.jpg)
 *Image source: <a href="https://www.telegraph.co.uk/business/2016/05/23/peer-to-peer-lenders-will-never-challenge-the-banks-says-deloitt/" target="_blank">telegraph.co.uk</a>*
 
 ```{r setup, include=FALSE}

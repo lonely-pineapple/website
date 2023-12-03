@@ -8,7 +8,7 @@ tags: ["Architecture", "Arts", "New technologies", "France"]
 
 ## A profession in jeopardy
 
-![burning_nd](https://hp-personal-website.com/burning_nd.jpeg)
+![burning_nd](https://hppersonalwebsite.com/burning_nd.jpeg)
 *Image source: <a href="https://www.nbcnews.com/news/world/notre-dame-fire-what-was-damaged-n995371/" target="_blank">nbcnews.com</a>*
 
 Paris, Versailles, Bordeaux, Nice, Aix-en-Provence, Marseille … France is, to the eye of many, one of the centers of the western architecture—and, broadly speaking, of the architecture itself—by its incredible heritage from Ancient Times, the Middle Ages, the Renaissance, and the 19th and 20th centuries. A heritage tantamount to those of many European countries, such as Italy and some of its beautiful and eternal cities like Rome, Genoa, Florence or Milano. 
@@ -43,7 +43,7 @@ Since competitions became common practice for most projects in France, the bigge
 
 ## The rise of new technologies overhauls the way projects are being conceived
 
-![revit](https://www.hp-personal-website.com/revit.jpg)
+![revit](https://www.hppersonalwebsite.com/revit.jpg)
 *Image source: <a href="https://knowledge.autodesk.com/search-result/caas/simplecontent/content/things-revit-and-bim-can-do-together.html" target="_blank">autodesk.com</a>*
 
 There is a second factor on the architecture market that contributes to concentrate the supply: the rise of new technologies. As in almost every sector of the economy, these have profoundly reshaped the profession since the end of the 1980s.
@@ -74,7 +74,7 @@ One could wonder is this situation is necessarily a bad one. Do we really need p
 
 ## The American model: a relevant way for European architects to take on the challenge
 
-![sears_tower](https://www.hp-personal-website.com/sears_tower.jpg)
+![sears_tower](https://www.hppersonalwebsite.com/sears_tower.jpg)
 *Image source: <a href="https://ww3.rics.org/uk/en/modus/built-environment/commercial-real-estate/buildings-that-elevated-cities--chicago-s-sears-tower.html" target="_blank">ww3.rics.org</a>*
  
 The “American model” is, in fact, the “Anglo-Saxon model”: it encompasses the way that American, but also British and Japanese architecture agencies work. 
