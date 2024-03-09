@@ -22,9 +22,6 @@ menu:
     - name: Tags
       url: "tags/"
       weight: 3
-    - name: CV
-      url: "https://hppersonalwebsite.com/hadrien_pistre_cv.pdf"
-      weight: 4
       
 params:
   description: "HP Personal Website"
